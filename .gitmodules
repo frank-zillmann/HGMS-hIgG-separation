@@ -1,0 +1,3 @@
+[submodule "external/FS3"]
+	path = external/FS3
+	url = https://github.com/frank-zillmann/FS3
