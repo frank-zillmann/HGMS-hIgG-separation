@@ -1,0 +1,78 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "CMake: Release Build",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"${workspaceFolder}/scripts/build.sh",
+				"-DCMAKE_BUILD_TYPE=Release"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"problemMatcher": [
+				"$gcc"
+			],
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			}
+		},
+		{
+			"label": "CMake: Debug Build",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"${workspaceFolder}/scripts/build.sh",
+				"-DCMAKE_BUILD_TYPE=Debug",
+			],
+			"group": "build",
+			"problemMatcher": [
+				"$gcc"
+			],
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			}
+		},
+		{
+			"label": "CMake: Recompile",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"${workspaceFolder}/scripts/recompile.sh"
+			],
+			"group": "build",
+			"problemMatcher": [
+				"$gcc"
+			],
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			}
+		},
+		{
+			"label": "Run: Normal Run",
+			"type": "shell",
+			"command": "${workspaceFolder}/install/bin/HGMS_hIgG_separation_main_run",
+			"group": "test",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			}
+		},
+		{
+			"label": "Run: Hyperparameter Search",
+			"type": "shell",
+			"command": "${workspaceFolder}/install/bin/HGMS_hIgG_separation_hyperparameter_grid_search",
+			"group": "test",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			}
+		}
+	]
+}

@@ -1,3 +1,12 @@
+/TODO
+
+# Run folders with timestamps
+run_*/
+
+# Build and install folders
+/build/
+/install/
+
 # C++ template from GitHub:
 
 # Prerequisites
