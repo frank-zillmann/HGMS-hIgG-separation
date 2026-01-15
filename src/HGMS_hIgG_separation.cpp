@@ -576,16 +576,16 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     // ========================== RECIPE ===========================
     // =============================================================
 
-    Volume frac_feed_1(reactionSystem);
-    Volume frac_feed_2(reactionSystem);
-    Volume frac_wash_1(reactionSystem);
-    Volume frac_wash_2(reactionSystem);
-    Volume frac_wash_3(reactionSystem);
-    Volume frac_elution_1(reactionSystem);
-    Volume frac_elution_2(reactionSystem);
-    Volume frac_elution_3(reactionSystem);
-    Volume frac_elution_4(reactionSystem);
-    Volume frac_elution_5(reactionSystem);
+    auto frac_feed_1 = std::make_shared<Volume>(reactionSystem);
+    auto frac_feed_2 = std::make_shared<Volume>(reactionSystem);
+    auto frac_wash_1 = std::make_shared<Volume>(reactionSystem);
+    auto frac_wash_2 = std::make_shared<Volume>(reactionSystem);
+    auto frac_wash_3 = std::make_shared<Volume>(reactionSystem);
+    auto frac_elution_1 = std::make_shared<Volume>(reactionSystem);
+    auto frac_elution_2 = std::make_shared<Volume>(reactionSystem);
+    auto frac_elution_3 = std::make_shared<Volume>(reactionSystem);
+    auto frac_elution_4 = std::make_shared<Volume>(reactionSystem);
+    auto frac_elution_5 = std::make_shared<Volume>(reactionSystem);
 
     enum FlowSheetConfiguration { NoFlow, Line, Loop };
 
@@ -596,30 +596,30 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
         realtype mixing_percentage;
         FlowSheetConfiguration flow_sheet_configuration;
         RowVector inlet_solution;
-        Volume* fraction;
+        std::shared_ptr<Volume> fraction;
     };
     std::vector<TimeSection> recipe;
 
-    recipe.push_back({"Load 1", 1199, 20, 0, Line, feed, &frac_feed_1});
+    recipe.push_back({"Load 1", 1199, 20, 0, Line, feed, frac_feed_1});
     recipe.push_back({"Load 1 pause", 34, 0, 0, NoFlow, buffer5_water, nullptr});
-    recipe.push_back({"Load 2", 96, 20, 0, Line, feed, &frac_feed_1});
+    recipe.push_back({"Load 2", 96, 20, 0, Line, feed, frac_feed_1});
     recipe.push_back({"Load 2 pause", 33, 0, 0, NoFlow, buffer5_water, nullptr});
 
-    recipe.push_back({"Wash 1 fill", 50, 40, 0, Line, buffer1, &frac_feed_2});
+    recipe.push_back({"Wash 1 fill", 50, 40, 0, Line, buffer1, frac_feed_2});
     recipe.push_back({"Wash 1 resuspend", 65, 0, 60, NoFlow, buffer5_water, nullptr});
     recipe.push_back({"Wash 1 resuspend loop", 51, 40, 50, Loop, buffer5_water, nullptr});
     recipe.push_back({"Wash 1 recapture", 69, 0, 0, NoFlow, buffer5_water, nullptr});
     recipe.push_back({"Wash 1 recapture loop", 196, 30, 0, Loop, buffer5_water, nullptr});
     recipe.push_back({"Wash 1 pause", 6, 0, 0, NoFlow, buffer5_water, nullptr});
 
-    recipe.push_back({"Wash 2 fill", 50, 40, 0, Line, buffer1, &frac_wash_1});
+    recipe.push_back({"Wash 2 fill", 50, 40, 0, Line, buffer1, frac_wash_1});
     recipe.push_back({"Wash 2 resuspend", 65, 0, 60, NoFlow, buffer5_water, nullptr});
     recipe.push_back({"Wash 2 resuspend loop", 51, 40, 50, Loop, buffer5_water, nullptr});
     recipe.push_back({"Wash 2 recapture", 69, 0, 0, NoFlow, buffer5_water, nullptr});
     recipe.push_back({"Wash 2 recapture loop", 196, 30, 0, Loop, buffer5_water, nullptr});
     recipe.push_back({"Wash 2 pause", 14, 0, 0, NoFlow, buffer5_water, nullptr});
 
-    recipe.push_back({"Wash 3 fill", 50, 40, 0, Line, buffer2, &frac_wash_2});
+    recipe.push_back({"Wash 3 fill", 50, 40, 0, Line, buffer2, frac_wash_2});
     recipe.push_back({"Wash 3 resuspend", 65, 0, 60, NoFlow, buffer5_water, nullptr});
     recipe.push_back({"Wash 3 resuspend loop", 51, 40, 50, Loop, buffer5_water, nullptr});
     recipe.push_back({"Wash 3 recapture", 69, 0, 0, NoFlow, buffer5_water, nullptr});
@@ -628,42 +628,42 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
 
     // 6s with Buffer2 in Matlab code, but not in the Appendix / Thesis
 
-    recipe.push_back({"Elution 1 fill", 52, 40, 0, Line, buffer3, &frac_wash_3});
+    recipe.push_back({"Elution 1 fill", 52, 40, 0, Line, buffer3, frac_wash_3});
     recipe.push_back({"Elution 1 resuspend", 90, 0, 60, NoFlow, buffer5_water, nullptr});
     recipe.push_back({"Elution 1 resuspend loop", 300, 30, 40, Loop, buffer5_water, nullptr});
     recipe.push_back({"Elution 1 recapture", 60, 0, 0, NoFlow, buffer5_water, nullptr});
     recipe.push_back({"Elution 1 recapture loop", 200, 30, 0, Loop, buffer5_water, nullptr});
     recipe.push_back({"Elution 1 pause", 7, 0, 0, NoFlow, buffer5_water, nullptr});
 
-    recipe.push_back({"Elution 2 fill", 52, 40, 0, Line, buffer3, &frac_elution_1});
+    recipe.push_back({"Elution 2 fill", 52, 40, 0, Line, buffer3, frac_elution_1});
     recipe.push_back({"Elution 2 resuspend", 90, 0, 60, NoFlow, buffer5_water, nullptr});
     recipe.push_back({"Elution 2 resuspend loop", 300, 30, 40, Loop, buffer5_water, nullptr});
     recipe.push_back({"Elution 2 recapture", 60, 0, 0, NoFlow, buffer5_water, nullptr});
     recipe.push_back({"Elution 2 recapture loop", 200, 30, 0, Loop, buffer5_water, nullptr});
     recipe.push_back({"Elution 2 pause", 9, 0, 0, NoFlow, buffer5_water, nullptr});
 
-    recipe.push_back({"Elution 3 fill", 52, 40, 0, Line, buffer3, &frac_elution_2});
+    recipe.push_back({"Elution 3 fill", 52, 40, 0, Line, buffer3, frac_elution_2});
     recipe.push_back({"Elution 3 resuspend", 90, 0, 60, NoFlow, buffer5_water, nullptr});
     recipe.push_back({"Elution 3 resuspend loop", 300, 30, 40, Loop, buffer5_water, nullptr});
     recipe.push_back({"Elution 3 recapture", 60, 0, 0, NoFlow, buffer5_water, nullptr});
     recipe.push_back({"Elution 3 recapture loop", 200, 30, 0, Loop, buffer5_water, nullptr});
     recipe.push_back({"Elution 3 pause", 10, 0, 0, NoFlow, buffer5_water, nullptr});
 
-    recipe.push_back({"Elution 4 fill", 52, 40, 0, Line, buffer3, &frac_elution_3});
+    recipe.push_back({"Elution 4 fill", 52, 40, 0, Line, buffer3, frac_elution_3});
     recipe.push_back({"Elution 4 resuspend", 90, 0, 60, NoFlow, buffer5_water, nullptr});
     recipe.push_back({"Elution 4 resuspend loop", 300, 30, 40, Loop, buffer5_water, nullptr});
     recipe.push_back({"Elution 4 recapture", 60, 0, 0, NoFlow, buffer5_water, nullptr});
     recipe.push_back({"Elution 4 recapture loop", 200, 30, 0, Loop, buffer5_water, nullptr});
     recipe.push_back({"Elution 4 pause", 154, 0, 0, NoFlow, buffer5_water, nullptr});
 
-    recipe.push_back({"Elution 5 fill", 52, 40, 0, Line, buffer3, &frac_elution_4});
+    recipe.push_back({"Elution 5 fill", 52, 40, 0, Line, buffer3, frac_elution_4});
     recipe.push_back({"Elution 5 resuspend", 90, 0, 60, NoFlow, buffer5_water, nullptr});
     recipe.push_back({"Elution 5 resuspend loop", 300, 30, 40, Loop, buffer5_water, nullptr});
     recipe.push_back({"Elution 5 recapture", 60, 0, 0, NoFlow, buffer5_water, nullptr});
     recipe.push_back({"Elution 5 recapture loop", 200, 30, 0, Loop, buffer5_water, nullptr});
     recipe.push_back({"Elution 5 pause", 170, 0, 0, NoFlow, buffer5_water, nullptr});
 
-    recipe.push_back({"Regeneration", 52, 25, 0, Line, buffer1, &frac_elution_5});
+    recipe.push_back({"Regeneration", 52, 25, 0, Line, buffer1, frac_elution_5});
 
     realtype total_time = 0.0;
     for (const auto& section : recipe) {
@@ -812,7 +812,7 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
         // throw std::runtime_error("Time " + std::to_string(t) + " exceeds total duration of the recipe.");
     };
 
-    auto flowRate_function_frac = [&](realtype t, Volume* fraction) -> realtype {
+    auto flowRate_function_frac = [&](realtype t, const std::shared_ptr<Volume>& fraction) -> realtype {
         realtype t_cache = 0.0;
         for (const auto& section : recipe) {
             t_cache += section.t_duration;
@@ -832,7 +832,7 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     // ========================== UNIT OPERATIONS ==================
     // =============================================================
 
-    Inlet inlet(reactionSystem, inlet_function);
+    auto inlet = std::make_shared<Inlet>(reactionSystem, inlet_function);
 
     realtype d_pipes = 0.0096;
     realtype A_cross_pipes = M_PI / 4 * d_pipes * d_pipes;
@@ -840,8 +840,8 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     realtype l_inlet_pipe = 0.67 + (0.00005 / A_cross_pipes);
 
     auto scale_n = [&](int base) { return std::max(1, static_cast<int>(std::round(base * discretization_factor))); };
-    Pipe pipe_inlet(reactionSystem, scale_n(10), A_cross_pipes, l_inlet_pipe, flowRateFunction, D_ax_pipes);
-    pipe_inlet.setConstInitialConcentration(buffer5_water);
+    auto pipe_inlet = std::make_shared<Pipe>(reactionSystem, scale_n(10), A_cross_pipes, l_inlet_pipe, flowRateFunction, D_ax_pipes);
+    pipe_inlet->setConstInitialConcentration(buffer5_water);
 
     auto a_eff_function = [](realtype um_u0_ratio) {
         auto a1 = 2.035;
@@ -862,8 +862,8 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     realtype MNP_capacity = 40e-3;
 
     // RS_MagneticCaptureProcessChamber with all parameters
-    RS_MagneticCaptureProcessChamber
-        pc(reactionSystem,
+    auto pc = std::make_shared<RS_MagneticCaptureProcessChamber>(
+           reactionSystem,
            scale_n(30),  // n_cells (scaled)
            A_cross_pc,   // crossSectionArea - Cross-sectional area of the chamber
            l_pc,         // length - Height of the discs in the chamber
@@ -878,22 +878,22 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
            capture_function,         // magnetic_field_strength_function
            flowRateFunction,         // flowRateFunction
            pc_D_ax_function);        // dispersion_coefficient_function
-    pc.setConstInitialConcentration(buffer5_water);
+    pc->setConstInitialConcentration(buffer5_water);
 
     realtype V_inletRegion_pc = 4.113e-5;
     realtype V_outletRegion_pc = 8.381e-5;
     realtype V_dead = V_inletRegion_pc + V_outletRegion_pc;
 
-    Volume dead_volume(reactionSystem, V_dead);
-    dead_volume.setConstInitialConcentration(buffer5_water);
+    auto dead_volume = std::make_shared<Volume>(reactionSystem, V_dead);
+    dead_volume->setConstInitialConcentration(buffer5_water);
 
     realtype l_pipe_outlet = 1.02;
-    Pipe pipe_outlet(reactionSystem, scale_n(10), A_cross_pipes, l_pipe_outlet, flowRateFunction, D_ax_pipes);
-    pipe_outlet.setConstInitialConcentration(buffer5_water);
+    auto pipe_outlet = std::make_shared<Pipe>(reactionSystem, scale_n(10), A_cross_pipes, l_pipe_outlet, flowRateFunction, D_ax_pipes);
+    pipe_outlet->setConstInitialConcentration(buffer5_water);
 
     realtype l_pipe_loop = 1.73;
-    Pipe pipe_loop(reactionSystem, scale_n(10), A_cross_pipes, l_pipe_loop, flowRate_function_loop, D_ax_pipes);
-    pipe_loop.setConstInitialConcentration(buffer5_water);
+    auto pipe_loop = std::make_shared<Pipe>(reactionSystem, scale_n(10), A_cross_pipes, l_pipe_loop, flowRate_function_loop, D_ax_pipes);
+    pipe_loop->setConstInitialConcentration(buffer5_water);
 
     // Calculate total duration
     realtype total_duration = 0.0;
@@ -903,9 +903,9 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     std::cout << "Total duration of the process: " << total_duration << " seconds." << std::endl;
 
     Process process(cs,
-                    {&inlet, &pipe_inlet, &pc, &dead_volume, &pipe_outlet, &pipe_loop, &frac_feed_1, &frac_feed_2,
-                     &frac_wash_1, &frac_wash_2, &frac_wash_3, &frac_elution_1, &frac_elution_2, &frac_elution_3,
-                     &frac_elution_4, &frac_elution_5},
+                    {inlet, pipe_inlet, pc, dead_volume, pipe_outlet, pipe_loop, frac_feed_1, frac_feed_2,
+                     frac_wash_1, frac_wash_2, frac_wash_3, frac_elution_1, frac_elution_2, frac_elution_3,
+                     frac_elution_4, frac_elution_5},
                     total_duration - 1e-6);
 
     // =============================================================
@@ -914,39 +914,39 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     // WARNING: You need to check consistency of connections and flow rates for all times yourself!
 
     // Inlet / Line connections
-    process.addConnection(inlet.out(), pipe_inlet.in(), flowRate_function_line);
+    process.addConnection(inlet->out(), pipe_inlet->in(), flowRate_function_line);
 
     // Always connected
-    process.addConnection(pipe_inlet.out(), pc.in(), flowRateFunction);
-    process.addConnection(pc.out(), dead_volume.in(), flowRateFunction);
-    process.addConnection(dead_volume.out(), pipe_outlet.in(), flowRateFunction);
-    // process.addConnection(pipe_outlet.out(), outlet.in(), flowRate_function_line);
+    process.addConnection(pipe_inlet->out(), pc->in(), flowRateFunction);
+    process.addConnection(pc->out(), dead_volume->in(), flowRateFunction);
+    process.addConnection(dead_volume->out(), pipe_outlet->in(), flowRateFunction);
+    // process.addConnection(pipe_outlet->out(), outlet->in(), flowRate_function_line);
 
     // Connections to fractions
-    process.addConnection(pipe_outlet.out(), frac_feed_1.in(),
-                          [&](realtype t) { return flowRate_function_frac(t, &frac_feed_1); });
-    process.addConnection(pipe_outlet.out(), frac_feed_2.in(),
-                          [&](realtype t) { return flowRate_function_frac(t, &frac_feed_2); });
-    process.addConnection(pipe_outlet.out(), frac_wash_1.in(),
-                          [&](realtype t) { return flowRate_function_frac(t, &frac_wash_1); });
-    process.addConnection(pipe_outlet.out(), frac_wash_2.in(),
-                          [&](realtype t) { return flowRate_function_frac(t, &frac_wash_2); });
-    process.addConnection(pipe_outlet.out(), frac_wash_3.in(),
-                          [&](realtype t) { return flowRate_function_frac(t, &frac_wash_3); });
-    process.addConnection(pipe_outlet.out(), frac_elution_1.in(),
-                          [&](realtype t) { return flowRate_function_frac(t, &frac_elution_1); });
-    process.addConnection(pipe_outlet.out(), frac_elution_2.in(),
-                          [&](realtype t) { return flowRate_function_frac(t, &frac_elution_2); });
-    process.addConnection(pipe_outlet.out(), frac_elution_3.in(),
-                          [&](realtype t) { return flowRate_function_frac(t, &frac_elution_3); });
-    process.addConnection(pipe_outlet.out(), frac_elution_4.in(),
-                          [&](realtype t) { return flowRate_function_frac(t, &frac_elution_4); });
-    process.addConnection(pipe_outlet.out(), frac_elution_5.in(),
-                          [&](realtype t) { return flowRate_function_frac(t, &frac_elution_5); });
+    process.addConnection(pipe_outlet->out(), frac_feed_1->in(),
+                          [&](realtype t) { return flowRate_function_frac(t, frac_feed_1); });
+    process.addConnection(pipe_outlet->out(), frac_feed_2->in(),
+                          [&](realtype t) { return flowRate_function_frac(t, frac_feed_2); });
+    process.addConnection(pipe_outlet->out(), frac_wash_1->in(),
+                          [&](realtype t) { return flowRate_function_frac(t, frac_wash_1); });
+    process.addConnection(pipe_outlet->out(), frac_wash_2->in(),
+                          [&](realtype t) { return flowRate_function_frac(t, frac_wash_2); });
+    process.addConnection(pipe_outlet->out(), frac_wash_3->in(),
+                          [&](realtype t) { return flowRate_function_frac(t, frac_wash_3); });
+    process.addConnection(pipe_outlet->out(), frac_elution_1->in(),
+                          [&](realtype t) { return flowRate_function_frac(t, frac_elution_1); });
+    process.addConnection(pipe_outlet->out(), frac_elution_2->in(),
+                          [&](realtype t) { return flowRate_function_frac(t, frac_elution_2); });
+    process.addConnection(pipe_outlet->out(), frac_elution_3->in(),
+                          [&](realtype t) { return flowRate_function_frac(t, frac_elution_3); });
+    process.addConnection(pipe_outlet->out(), frac_elution_4->in(),
+                          [&](realtype t) { return flowRate_function_frac(t, frac_elution_4); });
+    process.addConnection(pipe_outlet->out(), frac_elution_5->in(),
+                          [&](realtype t) { return flowRate_function_frac(t, frac_elution_5); });
 
     // Loop Connections
-    process.addConnection(pipe_outlet.out(), pipe_loop.in(), flowRate_function_loop);
-    process.addConnection(pipe_loop.out(), pipe_inlet.in(), flowRate_function_loop);
+    process.addConnection(pipe_outlet->out(), pipe_loop->in(), flowRate_function_loop);
+    process.addConnection(pipe_loop->out(), pipe_inlet->in(), flowRate_function_loop);
 
     // =============================================================
     // ========================== OBSERVER =========================
@@ -954,11 +954,11 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
 
     // Compute maximum flow rate and minimum cell_volume
     // realtype max_flow_rate = pump_flowRate_Interpolator(40);  // Max at 40% pump percentage
-    // realtype min_cell_volume = std::min({pipe_inlet.cell_volume, pc.cell_volume_l_and_sl, dead_volume.cell_volume,
-    //                                      pipe_outlet.cell_volume, pipe_loop.cell_volume});
+    // realtype min_cell_volume = std::min({pipe_inlet->cell_volume, pc->cell_volume_l_and_sl, dead_volume->cell_volume,
+    //                                      pipe_outlet->cell_volume, pipe_loop->cell_volume});
     // std::cout << "Max flow rate: " << max_flow_rate << " m³/s" << std::endl;
     // std::cout << "Min cell volume: " << min_cell_volume << " m³" << std::endl;
-    // std::cout << "Cell volume l and sl pc: " << pc.cell_volume_l_and_sl << " m³" << std::endl;
+    // std::cout << "Cell volume l and sl pc: " << pc->cell_volume_l_and_sl << " m³" << std::endl;
 
     Solver solver(process, solverType);
 
@@ -967,39 +967,39 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     std::cout << "Number of observation time steps: " << n_obs_time_steps << std::endl;
 
     bool compute_errors = true;
-    TimeSeriesObserver obs_pipe_inlet(0, total_duration, n_obs_time_steps, pipe_inlet.all(), solver, save_obs,
+    TimeSeriesObserver obs_pipe_inlet(0, total_duration, n_obs_time_steps, pipe_inlet->all(), solver, save_obs,
                                       compute_errors);
-    TimeSeriesObserver obs_pc_liquid(0, total_duration, n_obs_time_steps, pc.liquid(), solver, save_obs, compute_errors);
-    TimeSeriesObserver obs_pc_slurry(0, total_duration, n_obs_time_steps, pc.slurry(), solver, save_obs, compute_errors);
-    TimeSeriesObserver obs_pipe_oulet(0, total_duration, n_obs_time_steps, pipe_outlet.all(), solver, save_obs,
+    TimeSeriesObserver obs_pc_liquid(0, total_duration, n_obs_time_steps, pc->liquid(), solver, save_obs, compute_errors);
+    TimeSeriesObserver obs_pc_slurry(0, total_duration, n_obs_time_steps, pc->slurry(), solver, save_obs, compute_errors);
+    TimeSeriesObserver obs_pipe_oulet(0, total_duration, n_obs_time_steps, pipe_outlet->all(), solver, save_obs,
                                       compute_errors);
-    TimeSeriesObserver obs_pipe_loop(0, total_duration, n_obs_time_steps, pipe_loop.all(), solver, save_obs,
+    TimeSeriesObserver obs_pipe_loop(0, total_duration, n_obs_time_steps, pipe_loop->all(), solver, save_obs,
                                      compute_errors);
-    TimeSeriesObserver obs_frac_feed_1(0, total_duration, n_obs_time_steps, frac_feed_1.all(), solver, save_obs,
+    TimeSeriesObserver obs_frac_feed_1(0, total_duration, n_obs_time_steps, frac_feed_1->all(), solver, save_obs,
                                        compute_errors);
-    TimeSeriesObserver obs_frac_feed_2(0, total_duration, n_obs_time_steps, frac_feed_2.all(), solver, save_obs,
+    TimeSeriesObserver obs_frac_feed_2(0, total_duration, n_obs_time_steps, frac_feed_2->all(), solver, save_obs,
                                        compute_errors);
-    TimeSeriesObserver obs_frac_wash_1(0, total_duration, n_obs_time_steps, frac_wash_1.all(), solver, save_obs,
+    TimeSeriesObserver obs_frac_wash_1(0, total_duration, n_obs_time_steps, frac_wash_1->all(), solver, save_obs,
                                        compute_errors);
-    TimeSeriesObserver obs_frac_wash_2(0, total_duration, n_obs_time_steps, frac_wash_2.all(), solver, save_obs,
+    TimeSeriesObserver obs_frac_wash_2(0, total_duration, n_obs_time_steps, frac_wash_2->all(), solver, save_obs,
                                        compute_errors);
-    TimeSeriesObserver obs_frac_wash_3(0, total_duration, n_obs_time_steps, frac_wash_3.all(), solver, save_obs,
+    TimeSeriesObserver obs_frac_wash_3(0, total_duration, n_obs_time_steps, frac_wash_3->all(), solver, save_obs,
                                        compute_errors);
-    TimeSeriesObserver obs_frac_elution_1(0, total_duration, n_obs_time_steps, frac_elution_1.all(), solver, save_obs,
+    TimeSeriesObserver obs_frac_elution_1(0, total_duration, n_obs_time_steps, frac_elution_1->all(), solver, save_obs,
                                           compute_errors);
-    TimeSeriesObserver obs_frac_elution_2(0, total_duration, n_obs_time_steps, frac_elution_2.all(), solver, save_obs,
+    TimeSeriesObserver obs_frac_elution_2(0, total_duration, n_obs_time_steps, frac_elution_2->all(), solver, save_obs,
                                           compute_errors);
-    TimeSeriesObserver obs_frac_elution_3(0, total_duration, n_obs_time_steps, frac_elution_3.all(), solver, save_obs,
+    TimeSeriesObserver obs_frac_elution_3(0, total_duration, n_obs_time_steps, frac_elution_3->all(), solver, save_obs,
                                           compute_errors);
-    TimeSeriesObserver obs_frac_elution_4(0, total_duration, n_obs_time_steps, frac_elution_4.all(), solver, save_obs,
+    TimeSeriesObserver obs_frac_elution_4(0, total_duration, n_obs_time_steps, frac_elution_4->all(), solver, save_obs,
                                           compute_errors);
-    TimeSeriesObserver obs_frac_elution_5(0, total_duration, n_obs_time_steps, frac_elution_5.all(), solver, save_obs,
+    TimeSeriesObserver obs_frac_elution_5(0, total_duration, n_obs_time_steps, frac_elution_5->all(), solver, save_obs,
                                           compute_errors);
 
     TimeSeriesObserver obs_complete_y_vector(0, total_duration, n_obs_time_steps,
-                                             ArrayMapper(&inlet, solver.getYSize() / cs.n_components, cs.n_components),
+                                             ArrayMapper(inlet.get(), solver.getYSize() / cs.n_components, cs.n_components),
                                              solver, save_obs);
-    TimeSeriesObserver obs_pc_outlet(0, total_duration, n_obs_time_steps, pc.out(), solver, save_obs);
+    TimeSeriesObserver obs_pc_outlet(0, total_duration, n_obs_time_steps, pc->out(), solver, save_obs);
 
     // To observe:
     // Elution Protein
@@ -1050,12 +1050,12 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
         obs_pc_outlet.save_to_npy(obs_pc_outlet_filename);
 
         // Convert pipe outlet data to pH values for each cell and save
-        std::size_t cell_index = pipe_outlet.n_cells / 2;  // middle cell
-        ColVector pH_activity_pipe_outlet = convert_to_pH(obs_pipe_oulet, cell_index, pipe_outlet.cell_volume, cs,
+        std::size_t cell_index = pipe_outlet->n_cells / 2;  // middle cell
+        ColVector pH_activity_pipe_outlet = convert_to_pH(obs_pipe_oulet, cell_index, pipe_outlet->cell_volume, cs,
                                                           acitivityModel);
         cnpy::npy_save(obs_dir + "/pipe_outlet_middle_cell_pH_activity.npy", pH_activity_pipe_outlet.data(),
                        {static_cast<size_t>(pH_activity_pipe_outlet.size())}, "w");
-        ColVector pH_concentration_pipe_outlet = convert_to_pH(obs_pipe_oulet, cell_index, pipe_outlet.cell_volume, cs,
+        ColVector pH_concentration_pipe_outlet = convert_to_pH(obs_pipe_oulet, cell_index, pipe_outlet->cell_volume, cs,
                                                                NoActivityModel(cs));
         cnpy::npy_save(obs_dir + "/pipe_outlet_middle_cell_pH_concentration.npy", pH_concentration_pipe_outlet.data(),
                        {static_cast<size_t>(pH_concentration_pipe_outlet.size())}, "w");
