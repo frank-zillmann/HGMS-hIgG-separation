@@ -38,7 +38,7 @@ cmake .. \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$DEFAULT_INSTALL_DIR" \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-    "$@"
+    "$@" # Pass additional CMake args, overriding defaults if provided
 
 # Build
 echo ""
