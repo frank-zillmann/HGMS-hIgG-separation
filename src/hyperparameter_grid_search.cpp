@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "HGMS_hIgG_separation_shared.hpp"
-#include "cnpy.h"
+#include "Observers/NumpyIO.hpp"
 
 int main() {
     // Define the hyperparameter grid
@@ -104,11 +104,11 @@ int main() {
     std::cout << "Saving results to " << filename << "..." << std::endl;
 
     // Save arrays - results are already in row-major order (iterate discretization_factors outer, tau_reaction inner)
-    cnpy::npz_save(filename, "max_errors", max_errors.data(), {n_disc, n_tau}, "w");
-    cnpy::npz_save(filename, "solve_times", solve_times.data(), {n_disc, n_tau}, "a");
-    cnpy::npz_save(filename, "num_steps", num_steps.data(), {n_disc, n_tau}, "a");
-    cnpy::npz_save(filename, "discretization_factors", discretization_factors.data(), {n_disc}, "a");
-    cnpy::npz_save(filename, "tau_reaction_values", tau_reaction_values.data(), {n_tau}, "a");
+    FS3::npz_save(filename, "max_errors", max_errors.data(), {n_disc, n_tau}, "w");
+    FS3::npz_save(filename, "solve_times", solve_times.data(), {n_disc, n_tau}, "a");
+    FS3::npz_save(filename, "num_steps", num_steps.data(), {n_disc, n_tau}, "a");
+    FS3::npz_save(filename, "discretization_factors", discretization_factors.data(), {n_disc}, "a");
+    FS3::npz_save(filename, "tau_reaction_values", tau_reaction_values.data(), {n_tau}, "a");
 
     std::cout << "Results saved successfully!" << std::endl;
     std::cout << "\nSummary:" << std::endl;

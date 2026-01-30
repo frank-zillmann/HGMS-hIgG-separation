@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <iostream>
 #include <memory>
+#include <numeric>
 #include <ostream>
 #include <sstream>
 #include <stdexcept>
@@ -30,7 +31,7 @@
 #include "UnitOperations/Pipe.hpp"
 #include "UnitOperations/RS_MagneticCaptureProcessChamber.hpp"
 #include "UnitOperations/Volume.hpp"
-#include "cnpy.h"
+#include "Observers/NumpyIO.hpp"
 
 std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
                                                             realtype tau_reaction,
@@ -1024,7 +1025,7 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     const auto& internal_time_stamps = solver.getInternalTimeStamps();
     // Save internal time stamps to .npy file
     auto obs_dir = logger::obs_dir();
-    cnpy::npy_save(obs_dir + "/internal_timestamps.npy", &internal_time_stamps[0], {internal_time_stamps.size()}, "w");
+    FS3::npy_save(obs_dir + "/internal_timestamps.npy", &internal_time_stamps[0], {internal_time_stamps.size()}, "w");
 
     if (save_obs) {
         auto obs_unitOperations_filename = obs_dir + "/unit_operations.npz";
@@ -1053,11 +1054,11 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
         std::size_t cell_index = pipe_outlet->n_cells / 2;  // middle cell
         ColVector pH_activity_pipe_outlet = convert_to_pH(obs_pipe_oulet, cell_index, pipe_outlet->cell_volume, cs,
                                                           acitivityModel);
-        cnpy::npy_save(obs_dir + "/pipe_outlet_middle_cell_pH_activity.npy", pH_activity_pipe_outlet.data(),
+        FS3::npy_save(obs_dir + "/pipe_outlet_middle_cell_pH_activity.npy", pH_activity_pipe_outlet.data(),
                        {static_cast<size_t>(pH_activity_pipe_outlet.size())}, "w");
         ColVector pH_concentration_pipe_outlet = convert_to_pH(obs_pipe_oulet, cell_index, pipe_outlet->cell_volume, cs,
                                                                NoActivityModel(cs));
-        cnpy::npy_save(obs_dir + "/pipe_outlet_middle_cell_pH_concentration.npy", pH_concentration_pipe_outlet.data(),
+        FS3::npy_save(obs_dir + "/pipe_outlet_middle_cell_pH_concentration.npy", pH_concentration_pipe_outlet.data(),
                        {static_cast<size_t>(pH_concentration_pipe_outlet.size())}, "w");
     }
 
