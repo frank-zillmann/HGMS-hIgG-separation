@@ -1,0 +1,29 @@
+{
+    "files.associations": {
+        "*.tpp": "cpp",
+        "*.hpp": "cpp"
+    },
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    "cmake.buildDirectory": "${workspaceFolder}/build",
+    "cmake.installPrefix": "${workspaceFolder}/install",
+    "cmake.configureOnOpen": false,
+    "files.exclude": {
+        "**/.git": true,
+        "**/.cache": true,
+        "**/build": false,
+        "**/install": false
+    },
+    "search.exclude": {
+        "**/build": true,
+        "**/install": true,
+        "**/.git": true,
+        "**/.cache": true
+    },
+    "[cpp]": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "xaver.clang-format"
+    },
+    "[cmake]": {
+        "editor.formatOnSave": true
+    }
+}
