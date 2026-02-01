@@ -906,8 +906,7 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     Process process(cs,
                     {inlet, pipe_inlet, pc, dead_volume, pipe_outlet, pipe_loop, frac_feed_1, frac_feed_2,
                      frac_wash_1, frac_wash_2, frac_wash_3, frac_elution_1, frac_elution_2, frac_elution_3,
-                     frac_elution_4, frac_elution_5},
-                    total_duration - 1e-6);
+                     frac_elution_4, frac_elution_5}); // TODO: t_end remove, make functions robust to t>total_duration
 
     // =============================================================
     // ========================== CONNECTIONS ======================
