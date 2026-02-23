@@ -1227,52 +1227,52 @@ run_HGMS_hIgG_separation(realtype kf_ion, realtype tau_reaction, bool save_obs,
   // all times yourself!
 
   // Inlet / Line connections
-  process.addConnection(inlet->out(), pipe_inlet->in(), flowRate_function_line);
+  process.addConnection(inlet->exit(), pipe_inlet->entry(), flowRate_function_line);
 
   // Always connected
-  process.addConnection(pipe_inlet->out(), pc->in(), flowRateFunction);
-  process.addConnection(pc->out(), dead_volume->in(), flowRateFunction);
-  process.addConnection(dead_volume->out(), pipe_outlet->in(),
+  process.addConnection(pipe_inlet->exit(), pc->entry(), flowRateFunction);
+  process.addConnection(pc->exit(), dead_volume->entry(), flowRateFunction);
+  process.addConnection(dead_volume->exit(), pipe_outlet->entry(),
                         flowRateFunction);
-  // process.addConnection(pipe_outlet->out(), outlet->in(),
+  // process.addConnection(pipe_outlet->exit(), outlet->entry(),
   // flowRate_function_line);
 
   // Connections to fractions
-  process.addConnection(pipe_outlet->out(), frac_feed_1->in(), [&](realtype t) {
+  process.addConnection(pipe_outlet->exit(), frac_feed_1->entry(), [&](realtype t) {
     return flowRate_function_frac(t, frac_feed_1);
   });
-  process.addConnection(pipe_outlet->out(), frac_feed_2->in(), [&](realtype t) {
+  process.addConnection(pipe_outlet->exit(), frac_feed_2->entry(), [&](realtype t) {
     return flowRate_function_frac(t, frac_feed_2);
   });
-  process.addConnection(pipe_outlet->out(), frac_wash_1->in(), [&](realtype t) {
+  process.addConnection(pipe_outlet->exit(), frac_wash_1->entry(), [&](realtype t) {
     return flowRate_function_frac(t, frac_wash_1);
   });
-  process.addConnection(pipe_outlet->out(), frac_wash_2->in(), [&](realtype t) {
+  process.addConnection(pipe_outlet->exit(), frac_wash_2->entry(), [&](realtype t) {
     return flowRate_function_frac(t, frac_wash_2);
   });
-  process.addConnection(pipe_outlet->out(), frac_wash_3->in(), [&](realtype t) {
+  process.addConnection(pipe_outlet->exit(), frac_wash_3->entry(), [&](realtype t) {
     return flowRate_function_frac(t, frac_wash_3);
   });
   process.addConnection(
-      pipe_outlet->out(), frac_elution_1->in(),
+      pipe_outlet->exit(), frac_elution_1->entry(),
       [&](realtype t) { return flowRate_function_frac(t, frac_elution_1); });
   process.addConnection(
-      pipe_outlet->out(), frac_elution_2->in(),
+      pipe_outlet->exit(), frac_elution_2->entry(),
       [&](realtype t) { return flowRate_function_frac(t, frac_elution_2); });
   process.addConnection(
-      pipe_outlet->out(), frac_elution_3->in(),
+      pipe_outlet->exit(), frac_elution_3->entry(),
       [&](realtype t) { return flowRate_function_frac(t, frac_elution_3); });
   process.addConnection(
-      pipe_outlet->out(), frac_elution_4->in(),
+      pipe_outlet->exit(), frac_elution_4->entry(),
       [&](realtype t) { return flowRate_function_frac(t, frac_elution_4); });
   process.addConnection(
-      pipe_outlet->out(), frac_elution_5->in(),
+      pipe_outlet->exit(), frac_elution_5->entry(),
       [&](realtype t) { return flowRate_function_frac(t, frac_elution_5); });
 
   // Loop Connections
-  process.addConnection(pipe_outlet->out(), pipe_loop->in(),
+  process.addConnection(pipe_outlet->exit(), pipe_loop->entry(),
                         flowRate_function_loop);
-  process.addConnection(pipe_loop->out(), pipe_inlet->in(),
+  process.addConnection(pipe_loop->exit(), pipe_inlet->entry(),
                         flowRate_function_loop);
 
   // =============================================================
@@ -1352,7 +1352,7 @@ run_HGMS_hIgG_separation(realtype kf_ion, realtype tau_reaction, bool save_obs,
                   cs.n_components),
       solver, save_obs);
   TimeSeriesObserver obs_pc_outlet(0, total_duration, n_obs_time_steps,
-                                   pc->out(), solver, save_obs);
+                                   pc->exit(), solver, save_obs);
 
   // To observe:
   // Elution Protein
