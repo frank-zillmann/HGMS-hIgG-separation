@@ -1,0 +1,13 @@
+---
+Language: Cpp
+BasedOnStyle: Google
+IndentWidth: 4
+ColumnLimit: 120
+PenaltyBreakComment: 100000
+PenaltyExcessCharacter: 5
+PenaltyBreakBeforeFirstCallParameter: 100000
+PenaltyReturnTypeOnItsOwnLine: 100000
+PenaltyBreakAssignment: 100000
+PenaltyBreakString: 1000
+AllowAllParametersOfDeclarationOnNextLine: false
+BinPackParameters: false
