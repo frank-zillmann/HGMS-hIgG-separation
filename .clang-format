@@ -2,7 +2,7 @@
 Language: Cpp
 BasedOnStyle: Google
 IndentWidth: 4
-ColumnLimit: 120
+ColumnLimit: 160
 PenaltyBreakComment: 100000
 PenaltyExcessCharacter: 5
 PenaltyBreakBeforeFirstCallParameter: 100000

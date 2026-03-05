@@ -57,35 +57,19 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     ComponentSystem cs{
         {// Format:
          // Component(name).setCharge(...).setMolarMass(...).setTruesdellJonesAlpha(...).setTruesdellJonesBeta(...)
-         Component("H₂O").setMolarMass(18.01528e-3),
-         Component("H⁺").setCharge(1).setMolarMass(1.008e-3).setTruesdellJonesParameters(4.78e-10, 0.24e-3),
-         //  Component("Mg²⁺").setCharge(2).setTruesdellJonesParameters(5.5e-10,
-         //  0.2e-3),  // Only for testing of Truessdell-Jones model -> plays no
-         //  role in process
+         Component("H₂O").setMolarMass(18.01528e-3), Component("H⁺").setCharge(1).setMolarMass(1.008e-3).setTruesdellJonesParameters(4.78e-10, 0.24e-3),
          Component("OH⁻").setCharge(-1).setMolarMass(17.007e-3).setTruesdellJonesParameters(10.65e-10, 0.21e-3),
          Component("Na⁺").setCharge(1).setMolarMass(22.990e-3).setTruesdellJonesParameters(4.32e-10, 0.06e-3),
          Component("Cl⁻").setCharge(-1).setMolarMass(35.453e-3).setTruesdellJonesParameters(3.71e-10, 0.01e-3),
-         Component("TrisH⁺").setCharge(1).setMolarMass(121.14e-3).setTruesdellJonesParameters(4.0e-10, 0.0e-3),
-         Component("Tris").setMolarMass(121.14e-3), Component("AcH").setMolarMass(60.052e-3),
-         Component("Ac⁻").setCharge(-1).setMolarMass(59.044e-3).setTruesdellJonesParameters(4.5e-10, 0.0e-3),
-         Component("GlyH₂⁺").setCharge(1).setMolarMass(75.067e-3),  // TODO: No truesdell_jones paramters available -> use
-                                                                    // Debye-Hückel model and see if it makes a difference
-         Component("GlyH").setMolarMass(75.067e-3),
-         Component("Gly⁻").setCharge(-1).setMolarMass(74.059e-3).setTruesdellJonesParameters(4.0e-10, 0.0e-3),
-         Component("hIgG").setMolarMass(150),  // Human Immunoglobulin G (IgG) antibody, roughly 150 kDa
-         Component("MNP-OH₂⁺")
-             .setType(Type::MagneticNanoParticleGroup)
-             .setMolarMass(18.015e-3),  // MNP hydroxyl groups are not noted as charged
-                                        // because they should not be considered in the ionic
-                                        // strength of the activity model and in gouy chapman
-                                        // equation
+         Component("TrisH⁺").setCharge(1).setMolarMass(121.14e-3).setTruesdellJonesParameters(4.0e-10, 0.0e-3), Component("Tris").setMolarMass(121.14e-3),
+         Component("AcH").setMolarMass(60.052e-3), Component("Ac⁻").setCharge(-1).setMolarMass(59.044e-3).setTruesdellJonesParameters(4.5e-10, 0.0e-3),
+         // TODO: No truesdell_jones paramters available -> test Debye-Hückel model and see if it makes a difference
+         Component("GlyH₂⁺").setCharge(1).setMolarMass(75.067e-3), Component("GlyH").setMolarMass(75.067e-3),
+         Component("Gly⁻").setCharge(-1).setMolarMass(74.059e-3).setTruesdellJonesParameters(4.0e-10, 0.0e-3), Component("hIgG").setMolarMass(150),
+         // MNP hydroxyl groups are not noted as charged because they should not be considered in the ionic strength of the activity model and in gouy chapman equation
+         Component("MNP-OH₂⁺").setType(Type::MagneticNanoParticleGroup).setMolarMass(18.015e-3),
          Component("MNP-OH").setType(Type::MagneticNanoParticleGroup).setMolarMass(17.007e-3),
-         Component("MNP-O⁻")
-             .setType(Type::MagneticNanoParticleGroup)
-             .setMolarMass(15.999e-3),  // MNP hydroxyl groups are not noted as charged
-                                        // because they should not be considered in the ionic
-                                        // strength of the activity model and in gouy chapman
-                                        // equation
+         Component("MNP-O⁻").setType(Type::MagneticNanoParticleGroup).setMolarMass(15.999e-3),
          Component("MNP-hIgG").setType(Type::MagneticNanoParticleGroup).setMolarMass(150000e-3),
          Component("MNP1").setType(Type::MagneticNanoParticle).setRadius(1039e-9).setDensity(5170).setMagneticSaturation(3.5e5),
          Component("MNP2").setType(Type::MagneticNanoParticle).setRadius(1209e-9).setDensity(5170).setMagneticSaturation(3.5e5),
@@ -98,10 +82,9 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
          Component("MNP9").setType(Type::MagneticNanoParticle).setRadius(3477e-9).setDensity(5170).setMagneticSaturation(3.5e5),
          Component("MNP10").setType(Type::MagneticNanoParticle).setRadius(4043e-9).setDensity(5170).setMagneticSaturation(3.5e5)}};
 
-    // Other physical parameters
+    // Other global physical parameters
     const realtype MNP_Ns = 1.08 * 1e-5;  // [mol/m²] - number of hydroxyl groups per area
-    // TODO: Where does this come from? Is radius correct or only nm scale? Then
-    // it would fit better with MNP_specific_surface
+    // TODO: Where does this come from? Is radius correct or only nm scale? Then it would fit better with MNP_specific_surface
     const realtype MNP_specific_surface = 1e5;  // m²/kg
 
     // =============================================================
@@ -115,7 +98,7 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     realtype K_W = std::pow(10, -14) * 1e6;     // [mol²/(m³)²] - ion product of water
     realtype c_W = 1000 / cs("H₂O").molarMass;  // [mol/m³] - molar concentration of water
 
-    realtype Ks_W = K_W / c_W;  // [mol/m³] - Equilibrium constant for water dissociation in mol/m³
+    realtype Ks_W = K_W / c_W;                                          // [mol/m³] - Equilibrium constant for water dissociation in mol/m³
     realtype Ks_TrisH_plus = std::pow(10, -8.3) * 1e3;                  // [mol/m³]
     realtype Ks_AcH = std::pow(10, -4.75) * 1e3;                        // [mol/m³]
     realtype Ks_GlyH2_plus = std::pow(10, -2.35) * 1e3;                 // [mol/m³]
@@ -152,89 +135,78 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     // auto reaction_OH2_plus = massActionLaw_damped(cs, "MNP-OH₂⁺ <=> MNP-OH + H⁺", kf_ion, kf_ion / Ks_MNP_OH2_plus, tau_reaction, cs.getIdx("H⁺"));
     // auto reaction_OH = massActionLaw_damped(cs, "MNP-OH <=> MNP-O⁻ + H⁺", kf_ion, kf_ion / Ks_MNP_OH, tau_reaction, cs.getIdx("H⁺"));
 
-    auto reaction_OH2_plus = massActionLaw_inverseRatePrediction(cs, "MNP-OH₂⁺ <=> MNP-OH + H⁺", Ks_MNP_OH2_plus,
-                                                                 tau_reaction, cs.getIdx("H⁺"));
-    auto reaction_OH = massActionLaw_inverseRatePrediction(cs, "MNP-OH <=> MNP-O⁻ + H⁺ ", Ks_MNP_OH, tau_reaction,
-                                                           cs.getIdx("H⁺"));
+    auto reaction_OH2_plus = massActionLaw_inverseRatePrediction(cs, "MNP-OH₂⁺ <=> MNP-OH + H⁺", Ks_MNP_OH2_plus, tau_reaction, cs.getIdx("H⁺"));
+    auto reaction_OH = massActionLaw_inverseRatePrediction(cs, "MNP-OH <=> MNP-O⁻ + H⁺ ", Ks_MNP_OH, tau_reaction, cs.getIdx("H⁺"));
 
-    auto reaction_H_plus_gouy_chapman =
-        [  // Precompute indices directly in capture list
-            idx_MNP_OH2_plus = cs.getIdx("MNP-OH₂⁺"), idx_MNP_OH = cs.getIdx("MNP-OH"),
-            idx_MNP_O_minus = cs.getIdx("MNP-O⁻"), idx_H_plus = cs.getIdx("H⁺"), idx_MNP1 = cs.getIdx("MNP1"),
-            idx_MNP10 = cs.getIdx("MNP10"),
-            // Precompute charge mask - only works for ions with z = 1 or z = -1
-            charges_nonzero_mask = (cs.getCharges() != 0).cast<realtype>(),
-            // Precompute physical constants
-            surface_charge_factor = constants::elementary_charge * constants::avogadro * MNP_Ns,
-            normalization_factor = 2 * cs.relative_permittivity * constants::vacuum_permittivity *
-                                   constants::boltzmann * cs.temperature,
-            MNP_specific_surface, &reaction_OH2_plus,
-            &reaction_OH](realtype t, const ConstArrayMap &concentrations, ArrayMap &activities) {
-            const auto c_MNP_OH2_plus = concentrations.col(idx_MNP_OH2_plus);
-            const auto c_MNP_OH = concentrations.col(idx_MNP_OH);
-            const auto c_MNP_O_minus = concentrations.col(idx_MNP_O_minus);
-            const auto c_H_plus = concentrations.col(
-                idx_H_plus);  // Using H⁺ concentration here because original Gouy Chapman was derived like this -> TODO: discuss newer approaches of Martin Bazant et al.
+    auto reaction_H_plus_gouy_chapman = [  // Precompute indices directly in capture list
+                                            idx_MNP_OH2_plus = cs.getIdx("MNP-OH₂⁺"), idx_MNP_OH = cs.getIdx("MNP-OH"), idx_MNP_O_minus = cs.getIdx("MNP-O⁻"),
+                                            idx_H_plus = cs.getIdx("H⁺"), idx_MNP1 = cs.getIdx("MNP1"), idx_MNP10 = cs.getIdx("MNP10"),
+                                            // Precompute charge mask - only works for ions with z = 1 or z = -1
+                                            charges_nonzero_mask = (cs.getCharges() != 0).cast<realtype>(),
+                                            // Precompute physical constants
+                                            surface_charge_factor = constants::elementary_charge * constants::avogadro * MNP_Ns,
+                                            normalization_factor = 2 * cs.relative_permittivity * constants::vacuum_permittivity * constants::boltzmann *
+                                                                   cs.temperature,
+                                            MNP_specific_surface, &reaction_OH2_plus,
+                                            &reaction_OH](realtype t, const ConstArrayMap &concentrations, ArrayMap &activities) {
+        const auto c_MNP_OH2_plus = concentrations.col(idx_MNP_OH2_plus);
+        const auto c_MNP_OH = concentrations.col(idx_MNP_OH);
+        const auto c_MNP_O_minus = concentrations.col(idx_MNP_O_minus);
+        const auto c_H_plus = concentrations.col(
+            idx_H_plus);  // Using H⁺ concentration here because original Gouy Chapman was derived like this -> TODO: discuss newer approaches of Martin Bazant et al.
 
-            const auto surface_charge_raw = surface_charge_factor * ((c_MNP_OH2_plus - c_MNP_O_minus) /
-                                                                     (c_MNP_OH2_plus + c_MNP_OH + c_MNP_O_minus));
+        const auto surface_charge_raw = surface_charge_factor * ((c_MNP_OH2_plus - c_MNP_O_minus) / (c_MNP_OH2_plus + c_MNP_OH + c_MNP_O_minus));
 
-            // Take absolute value here has the same effect as choosing the right sign for the sqrt later
-            const auto surface_charge = surface_charge_raw.isFinite().select(surface_charge_raw,
-                                                                             0.0);  // Replace non-finite with 0.0
+        // Take absolute value here has the same effect as choosing the right sign for the sqrt later
+        const auto surface_charge = surface_charge_raw.isFinite().select(surface_charge_raw,
+                                                                         0.0);  // Replace non-finite with 0.0
 
-            const auto c_MNP = activities.middleCols(idx_MNP1, idx_MNP10 - idx_MNP1 + 1).rowwise().sum();
-            const auto surface_charge_MNP_alternative_raw = (constants::elementary_charge * constants::avogadro /
-                                                             MNP_specific_surface) *
-                                                            ((c_MNP_OH2_plus - c_MNP_O_minus) / c_MNP);
-            const auto surface_charge_MNP_alternative = surface_charge_MNP_alternative_raw.isFinite()
-                                                            .select(surface_charge_MNP_alternative_raw, 0.0);
+        const auto c_MNP = activities.middleCols(idx_MNP1, idx_MNP10 - idx_MNP1 + 1).rowwise().sum();
+        const auto surface_charge_MNP_alternative_raw = (constants::elementary_charge * constants::avogadro / MNP_specific_surface) *
+                                                        ((c_MNP_OH2_plus - c_MNP_O_minus) / c_MNP);
+        const auto surface_charge_MNP_alternative = surface_charge_MNP_alternative_raw.isFinite().select(surface_charge_MNP_alternative_raw, 0.0);
 
-            const auto n_0 = constants::avogadro * (concentrations.rowwise() * charges_nonzero_mask).rowwise().sum();
+        const auto n_0 = constants::avogadro * (concentrations.rowwise() * charges_nonzero_mask).rowwise().sum();
 
-            const auto normalized_surface_charge = 0.5 * (surface_charge / ((normalization_factor * n_0).sqrt()));
+        const auto normalized_surface_charge = 0.5 * (surface_charge / ((normalization_factor * n_0).sqrt()));
 
-            const auto f_raw = (-normalized_surface_charge +
-                                (normalized_surface_charge * normalized_surface_charge + 1).sqrt())
-                                   .square();
+        const auto f_raw = (-normalized_surface_charge + (normalized_surface_charge * normalized_surface_charge + 1).sqrt()).square();
 
-            const auto f = normalized_surface_charge.isFinite().select(f_raw, 0.0);
+        const auto f = normalized_surface_charge.isFinite().select(f_raw, 0.0);
 
-            const auto c_H_plus_surface = f * c_H_plus;
+        const auto c_H_plus_surface = f * c_H_plus;
 
-            activities.col(idx_H_plus) = c_H_plus_surface;
+        activities.col(idx_H_plus) = c_H_plus_surface;
 
 #if LOG_ENABLED
-            static int call_count = 0;
-            if (call_count < LOG_FIRST_N_CALLS || call_count % LOG_EVERY_N_CALLS == 0) {
-                std::ostringstream oss;
-                oss << "Call count: " << call_count << " at t= " << t << "\n";
-                oss << "H⁺ concentration: " << c_H_plus.transpose() << "\n";
-                oss << "MNP-OH₂⁺ concentration: " << c_MNP_OH2_plus.transpose() << "\n";
-                oss << "MNP-OH concentration : " << c_MNP_OH.transpose() << "\n";
-                oss << "MNP-O⁻ concentration: " << c_MNP_O_minus.transpose() << "\n";
-                oss << "Raw Surface charge: " << surface_charge_raw.transpose() << "\n";
-                oss << "Suface charge : " << surface_charge.transpose() << "\n";
-                oss << "Surface Charge MNP Alternative: " << surface_charge_MNP_alternative.transpose() << "\n";
-                oss << "N_0: " << n_0.transpose() << "\n";
-                oss << "Normalized surface charge : " << normalized_surface_charge.transpose() << "\n";
-                oss << "f_raw: " << f_raw.transpose() << "\n";
-                oss << "f: " << f.transpose() << "\n\n";
+        static int call_count = 0;
+        if (call_count < LOG_FIRST_N_CALLS || call_count % LOG_EVERY_N_CALLS == 0) {
+            std::ostringstream oss;
+            oss << "Call count: " << call_count << " at t= " << t << "\n";
+            oss << "H⁺ concentration: " << c_H_plus.transpose() << "\n";
+            oss << "MNP-OH₂⁺ concentration: " << c_MNP_OH2_plus.transpose() << "\n";
+            oss << "MNP-OH concentration : " << c_MNP_OH.transpose() << "\n";
+            oss << "MNP-O⁻ concentration: " << c_MNP_O_minus.transpose() << "\n";
+            oss << "Raw Surface charge: " << surface_charge_raw.transpose() << "\n";
+            oss << "Suface charge : " << surface_charge.transpose() << "\n";
+            oss << "Surface Charge MNP Alternative: " << surface_charge_MNP_alternative.transpose() << "\n";
+            oss << "N_0: " << n_0.transpose() << "\n";
+            oss << "Normalized surface charge : " << normalized_surface_charge.transpose() << "\n";
+            oss << "f_raw: " << f_raw.transpose() << "\n";
+            oss << "f: " << f.transpose() << "\n\n";
 
-                LOG("MNP_H+_gouy_chapman.log", oss.str());
-            }
-            call_count++;
+            LOG("MNP_H+_gouy_chapman.log", oss.str());
+        }
+        call_count++;
 #endif
-        };
+    };
 
     // amphoteric MNP hydroxl group reactions
     rs.add(Reaction(
         [=](realtype t, const ConstArrayMap &concentrations, const ConstArrayMap &activities, ArrayMap &dc_dt) {
             Array modified_activities{activities};
-            ArrayMap modified_activities_map(modified_activities.data(), activities.rows(), activities.cols(),
-                                             PhaseStride(activities.cols(), 1));
-            ConstArrayMap modified_activities_const_map(modified_activities.data(), activities.rows(),
-                                                        activities.cols(), PhaseStride(activities.cols(), 1));
+            ArrayMap modified_activities_map(modified_activities.data(), activities.rows(), activities.cols(), PhaseStride(activities.cols(), 1));
+            ConstArrayMap modified_activities_const_map(modified_activities.data(), activities.rows(), activities.cols(), PhaseStride(activities.cols(), 1));
 
             reaction_H_plus_gouy_chapman(t, concentrations, modified_activities_map);
             reaction_OH2_plus.rhs(t, concentrations, modified_activities_const_map, dc_dt);
@@ -242,10 +214,8 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
 
         [=](realtype t, const ConstArrayMap &concentrations, const ConstArrayMap &activities) -> realtype {
             Array modified_activities{activities};
-            ArrayMap modified_activities_map(modified_activities.data(), activities.rows(), activities.cols(),
-                                             PhaseStride(activities.cols(), 1));
-            ConstArrayMap modified_activities_const_map(modified_activities.data(), activities.rows(),
-                                                        activities.cols(), PhaseStride(activities.cols(), 1));
+            ArrayMap modified_activities_map(modified_activities.data(), activities.rows(), activities.cols(), PhaseStride(activities.cols(), 1));
+            ConstArrayMap modified_activities_const_map(modified_activities.data(), activities.rows(), activities.cols(), PhaseStride(activities.cols(), 1));
 
             reaction_H_plus_gouy_chapman(t, concentrations, modified_activities_map);
             auto error_OH2_plus = reaction_OH2_plus.errorFunction(t, concentrations, modified_activities_const_map);
@@ -255,10 +225,8 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     rs.add(Reaction(
         [=](realtype t, const ConstArrayMap &concentrations, const ConstArrayMap &activities, ArrayMap &dc_dt) {
             Array modified_activities{activities};
-            ArrayMap modified_activities_map(modified_activities.data(), activities.rows(), activities.cols(),
-                                             PhaseStride(activities.cols(), 1));
-            ConstArrayMap modified_activities_const_map(modified_activities.data(), activities.rows(),
-                                                        activities.cols(), PhaseStride(activities.cols(), 1));
+            ArrayMap modified_activities_map(modified_activities.data(), activities.rows(), activities.cols(), PhaseStride(activities.cols(), 1));
+            ConstArrayMap modified_activities_const_map(modified_activities.data(), activities.rows(), activities.cols(), PhaseStride(activities.cols(), 1));
 
             reaction_H_plus_gouy_chapman(t, concentrations, modified_activities_map);
             reaction_OH.rhs(t, concentrations, modified_activities_const_map, dc_dt);
@@ -266,10 +234,8 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
 
         [=](realtype t, const ConstArrayMap &concentrations, const ConstArrayMap &activities) -> realtype {
             Array modified_activities{activities};
-            ArrayMap modified_activities_map(modified_activities.data(), activities.rows(), activities.cols(),
-                                             PhaseStride(activities.cols(), 1));
-            ConstArrayMap modified_activities_const_map(modified_activities.data(), activities.rows(),
-                                                        activities.cols(), PhaseStride(activities.cols(), 1));
+            ArrayMap modified_activities_map(modified_activities.data(), activities.rows(), activities.cols(), PhaseStride(activities.cols(), 1));
+            ConstArrayMap modified_activities_const_map(modified_activities.data(), activities.rows(), activities.cols(), PhaseStride(activities.cols(), 1));
 
             reaction_H_plus_gouy_chapman(t, concentrations, modified_activities_map);
             auto error_OH = reaction_OH.errorFunction(t, concentrations, modified_activities_const_map);
@@ -300,17 +266,14 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     // Langmuir adsorption reaction for MNP-HIgG
     rs.add(Reaction([
                         // Precompute indices directly in capture list
-                        idx_H_plus = cs.getIdx("H⁺"), idx_MNP1 = cs.getIdx("MNP1"), idx_MNP10 = cs.getIdx("MNP10"),
-                        idx_MNP_hIgG = cs.getIdx("MNP-hIgG"), idx_hIgG = cs.getIdx("hIgG"),
-                        M_hIgG = cs("hIgG").molarMass, langmuir_K_B_interpolator, langmuir_q_max_interpolator,
-                        tau_reaction](realtype t, const ConstArrayMap &concentrations, const ConstArrayMap &activities,
-                                      ArrayMap &dc_dt) {
+                        idx_H_plus = cs.getIdx("H⁺"), idx_MNP1 = cs.getIdx("MNP1"), idx_MNP10 = cs.getIdx("MNP10"), idx_MNP_hIgG = cs.getIdx("MNP-hIgG"),
+                        idx_hIgG = cs.getIdx("hIgG"), M_hIgG = cs("hIgG").molarMass, langmuir_K_B_interpolator, langmuir_q_max_interpolator,
+                        tau_reaction](realtype t, const ConstArrayMap &concentrations, const ConstArrayMap &activities, ArrayMap &dc_dt) {
         // TODO: Maybe change to true activity based pH calculation later
-        const auto pH = -(concentrations.col(idx_H_plus)).log10() +
-                        3;  // +3 because pH is defined w.r.t. mol/L instead of mol/m³
+        const auto pH = -(concentrations.col(idx_H_plus)).log10() + 3;  // +3 because pH is defined w.r.t. mol/L instead of mol/m³
         const auto pH_activity = -(activities.col(idx_H_plus)).log10() + 3;
-        LOG("pH_conc_vs_pH_activity.log", "Time: " + std::to_string(t) + ", pH_conc: " + std::to_string(pH(0)) +
-                                              ", pH_activity: " + std::to_string(pH_activity(0)) + "\n");
+        LOG("pH_conc_vs_pH_activity.log",
+            "Time: " + std::to_string(t) + ", pH_conc: " + std::to_string(pH(0)) + ", pH_activity: " + std::to_string(pH_activity(0)) + "\n");
         const auto c_MNP = activities.middleCols(idx_MNP1, idx_MNP10 - idx_MNP1 + 1).rowwise().sum();
         const auto c_hIgG = activities.col(idx_hIgG);
         const auto c_MNP_hIgG = activities.col(idx_MNP_hIgG);
@@ -415,8 +378,7 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
         }
         call_count++;
 #endif
-        assert(((c_hIgG_eq_2 + 1e-12) >= 0).all() && ((c_MNP_hIgG_eq_2 + 1e-12) >= 0).all() &&
-               "Equilibrium concentrations (solution 2) must be non-negative");
+        assert(((c_hIgG_eq_2 + 1e-12) >= 0).all() && ((c_MNP_hIgG_eq_2 + 1e-12) >= 0).all() && "Equilibrium concentrations (solution 2) must be non-negative");
 
         assert(((c_hIgG_eq_1 - 1e-12) < 0).all() || ((c_MNP_hIgG_eq_1 - 1e-12) < 0).all() &&
                                                         "Equilibrium concentrations (solution 1) should contain "
@@ -442,7 +404,7 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     // ========================== SOLUTIONS ========================
     // =============================================================
 
-    const realtype buffer_eps = 0.0;             // To avoid numerical issues with zero concentrations
+    const realtype buffer_eps = 0.0;             // Default concentration - can be choosen as small positive number to avoid numerical issues
     const realtype t_reaction_duration = 100.0;  // Time for oneCellReaction to reach equilibrium
 
     // FEED
@@ -475,8 +437,7 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     feed(cs.getIdx("Tris")) = c_Tris_feed;
     feed(cs.getIdx("hIgG")) = c_hIgG_feed;
 
-    realtype mnp_distribution[10] = {0.04852, 0.1853,  0.25496, 0.14803, 0.03495,
-                                     0.03743, 0.09137, 0.10777, 0.068,   0.02367};
+    realtype mnp_distribution[10] = {0.04852, 0.1853, 0.25496, 0.14803, 0.03495, 0.03743, 0.09137, 0.10777, 0.068, 0.02367};
 
     if (std::abs(std::accumulate(mnp_distribution, mnp_distribution + 10, 0.0) - 1.0) > 1e-3) {
         throw std::runtime_error("Error: MNP distribution does not sum to 1 but to " +
@@ -487,9 +448,8 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
         feed(cs.getIdx("MNP" + std::to_string(i + 1))) = c_MNP_feed * mnp_distribution[i];
     }
 
-    feed(cs.getIdx("MNP-OH")) = MNP_Ns * MNP_specific_surface *
-                                c_MNP_feed;  // MNP_Ns * MNP_specific_surface is in mol/kg, multiply with
-                                             // c_MNP_feed in kg/m³ to get mol/m³
+    feed(cs.getIdx("MNP-OH")) = MNP_Ns * MNP_specific_surface * c_MNP_feed;  // MNP_Ns * MNP_specific_surface is in mol/kg, multiply with
+                                                                             // c_MNP_feed in kg/m³ to get mol/m³
 
     std::cout << "Feed before reaction: " << feed << std::endl;
     realtype feed_error;
@@ -497,8 +457,7 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     std::cout << "Feed after reaction: " << feed << std::endl;
     const auto pH_feed = -std::log10(feed(cs.getIdx("H⁺")) * 1e-3);
     std::cout << "pH feed: " << pH_feed << " (should be ~7.3)" << std::endl;
-    const auto q_feed = feed(cs.getIdx("MNP-hIgG")) /
-                        (feed.middleCols(cs.getIdx("MNP1"), cs.getIdx("MNP10") - cs.getIdx("MNP1") + 1).rowwise().sum());
+    const auto q_feed = feed(cs.getIdx("MNP-hIgG")) / (feed.middleCols(cs.getIdx("MNP1"), cs.getIdx("MNP10") - cs.getIdx("MNP1") + 1).rowwise().sum());
     const auto q_max = langmuir_q_max_interpolator(pH_feed);
     std::cout << "q feed: " << q_feed << " q_max at this pH: " << q_max << std::endl;
     std::cout << "Feed reaction error: " << feed_error << std::endl;
@@ -573,8 +532,7 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
 
     std::cout << "B5 before reaction: " << buffer5_water << std::endl;
     realtype buffer5_water_error;
-    std::tie(buffer5_water, buffer5_water_error) = oneCellReaction(rs, buffer5_water, t_reaction_duration, solverType,
-                                                                   timeout_seconds);
+    std::tie(buffer5_water, buffer5_water_error) = oneCellReaction(rs, buffer5_water, t_reaction_duration, solverType, timeout_seconds);
     std::cout << "B5 after reaction: " << buffer5_water << std::endl;
     auto pH_B5 = -std::log10(buffer5_water(cs.getIdx("H⁺")) * 1e-3);
     std::cout << "pH B5: " << pH_B5 << " (should be ~7.0 / 6.5)" << std::endl;
@@ -678,11 +636,9 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     realtype total_time = 0.0;
     for (const auto &section : recipe) {
         std::ostringstream oss;
-        oss << "From t=" << total_time << " to t=" << total_time + section.t_duration << " : " << section.name << " with "
-            << section.pump_percentage << "% pump and " << section.mixing_percentage << "% mixing in configuration "
-            << (section.flow_sheet_configuration == NoFlow ? "NoFlow"
-                                                           : (section.flow_sheet_configuration == Line ? "Line" : "Loop"))
-            << "\n";
+        oss << "From t=" << total_time << " to t=" << total_time + section.t_duration << " : " << section.name << " with " << section.pump_percentage
+            << "% pump and " << section.mixing_percentage << "% mixing in configuration "
+            << (section.flow_sheet_configuration == NoFlow ? "NoFlow" : (section.flow_sheet_configuration == Line ? "Line" : "Loop")) << "\n";
         LOG("recipe.log", oss.str());
         total_time += section.t_duration;
     }
@@ -694,11 +650,9 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     ColVector pump_percentages(19);
     pump_percentages << 0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90;
     ColVector upper_flowRate_curve(19);
-    upper_flowRate_curve << 0, 91, 220, 330, 465, 621, 783, 916, 1075, 1236, 1420, 1495, 1750, 1830, 1858, 1865, 1860,
-        1865, 1895;
+    upper_flowRate_curve << 0, 91, 220, 330, 465, 621, 783, 916, 1075, 1236, 1420, 1495, 1750, 1830, 1858, 1865, 1860, 1865, 1895;
     ColVector lower_flowRate_curve(19);
-    lower_flowRate_curve << 0, 117, 260, 380, 505, 654, 783, 920, 1080, 1238, 1424, 1501, 1758, 1838, 1861, 1875, 1868,
-        1875, 1910;
+    lower_flowRate_curve << 0, 117, 260, 380, 505, 654, 783, 920, 1080, 1238, 1424, 1501, 1758, 1838, 1861, 1875, 1868, 1875, 1910;
     ColVector flowRate_curve = (upper_flowRate_curve + lower_flowRate_curve) / 2.0 / 6e7;
     // Create the linear interpolator for pump percentages and flow rates
     LinearInterpolator<ColVector> pump_flowRate_Interpolator(pump_percentages, flowRate_curve);
@@ -712,8 +666,6 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
             }
         }
         return pump_flowRate_Interpolator(0.0);
-        // throw std::runtime_error("Time " + std::to_string(t) + " exceeds total
-        // duration of the recipe.");
     };
 
     realtype D_ax_pipes = 0.0;  // TODO: 0 vs 6*e-6? Both values are in Matlab and inconsistent
@@ -733,12 +685,9 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
             }
         }
         return mixing_D_ax_Interpolator(0.0);
-        // throw std::runtime_error("Time " + std::to_string(t) + " exceeds total
-        // duration of the recipe.");
     };
 
-    // Capture function: 1.0 for magnetic capture, negative values for uncapture
-    // i.e. dm_dt = capture_function(t) * m
+    // Capture function: 1.0 for magnetic capture, negative values for uncapture i.e. for capture_function(t) < 0: dm_dt = capture_function(t) * m
     auto capture_function = [&](realtype t) -> realtype {
         realtype t_cache = 0.0;
         for (const auto &section : recipe) {
@@ -749,10 +698,9 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
                 } else {
                     auto t_start = t_cache - section.t_duration;
                     auto t_in_section = t - t_start;
-                    auto T_halfLife_uncapture = 5.0;  // Half life of uncapture in seconds
+                    auto T_halfLife_uncapture = 5.0;  // every T_halfLife_uncapture seconds half of the captured MNPs transition back to liquid phase
                     realtype uncapture_rate = std::log(2) / T_halfLife_uncapture;
-                    // To avoid sharp discontinuities, use a quadratic ramp over the first
-                    // 10s of the section
+                    // To avoid sharp discontinuities, use a quadratic ramp over the first 10s of the section
                     if (t_in_section < 10.0) {
                         return -(t_in_section / 10.0) * (t_in_section / 10.0) * uncapture_rate;
                     } else {
@@ -762,8 +710,6 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
             }
         }
         return 1.0;
-        // throw std::runtime_error("Time " + std::to_string(t) + " exceeds total
-        // duration of the recipe.");
     };
 
     auto inlet_function = [&](realtype t) -> RowVector {
@@ -775,8 +721,6 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
             }
         }
         return recipe.back().inlet_solution;
-        // throw std::runtime_error("Time " + std::to_string(t) + " exceeds total
-        // duration of the recipe.");
     };
 
     auto flowRate_function = [&](realtype t) -> realtype {
@@ -787,15 +731,12 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
                 if (section.flow_sheet_configuration == Loop || section.flow_sheet_configuration == Line) {
                     return pump_flowRate_Interpolator(section.pump_percentage);
                 } else {
-                    assert(section.flow_sheet_configuration == NoFlow && section.pump_percentage == 0.0 &&
-                           "If NoFlow, pump_percentage must be 0!");
+                    assert(section.flow_sheet_configuration == NoFlow && section.pump_percentage == 0.0 && "If NoFlow, pump_percentage must be 0!");
                     return 0.0;
                 }
             }
         }
         return pump_flowRate_Interpolator(0.0);
-        // throw std::runtime_error("Time " + std::to_string(t) + " exceeds total
-        // duration of the recipe.");
     };
 
     auto flowRate_function_line = [&](realtype t) -> realtype {
@@ -811,8 +752,6 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
             }
         }
         return pump_flowRate_Interpolator(0.0);
-        // throw std::runtime_error("Time " + std::to_string(t) + " exceeds total
-        // duration of the recipe.");
     };
 
     auto flowRate_function_loop = [&](realtype t) -> realtype {
@@ -828,8 +767,6 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
             }
         }
         return pump_flowRate_Interpolator(0.0);
-        // throw std::runtime_error("Time " + std::to_string(t) + " exceeds total
-        // duration of the recipe.");
     };
 
     auto flowRate_function_frac = [&](realtype t, const std::shared_ptr<Volume> &fraction) -> realtype {
@@ -845,8 +782,6 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
             }
         }
         return pump_flowRate_Interpolator(0.0);
-        // throw std::runtime_error("Time " + std::to_string(t) + " exceeds total
-        // duration of the recipe.");
     };
 
     // =============================================================
@@ -860,8 +795,8 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
 
     realtype l_inlet_pipe = 0.67 + (0.00005 / A_cross_pipes);
 
-    auto scale_n = [&](int base) { return std::max(1, static_cast<int>(std::round(base * discretization_factor))); };
-    auto pipe_inlet = std::make_shared<Pipe>(rs, scale_n(10), A_cross_pipes, l_inlet_pipe, flowRateFunction, D_ax_pipes);
+    auto scale_n_cells = [&](int base) { return std::max(1, static_cast<int>(std::round(base * discretization_factor))); };
+    auto pipe_inlet = std::make_shared<Pipe>(rs, scale_n_cells(10), A_cross_pipes, l_inlet_pipe, flowRateFunction, D_ax_pipes);
     pipe_inlet->setConstInitialConcentration(buffer5_water);
 
     auto a_eff_function = [](realtype um_u0_ratio) {
@@ -885,25 +820,20 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     // RS_MagneticCaptureProcessChamber with all parameters
     auto pc = std::make_shared<
         RS_MagneticCaptureProcessChamber>(rs,
-                                          scale_n(30),  // n_cells (scaled)
-                                          A_cross_pc,   // crossSectionArea - Cross-sectional area of the chamber
-                                          l_pc,         // length - Height of the discs in the chamber
-                                          porosity_pc,  // empty_porosity - Porosity of the chamber when empty
-                                          25,           // n_disks - Number of disks in the chamber
-                                          8.0e-4,       // disk_height - Height of the discs in the chamber
-                                          19,  // alpha_fluid_particle_volume_ratio - Slurry factor ratio of fluid
-                                               // volume to MNP volume in the slurry
-                                          2,   // deposition_rate - Empirical parameter in G to account for deposition
-                                              // rate
-                                          MNP_capacity,  // MNP_capacity - Maximum mass of magnetic particles with
-                                                         // that can be captured
-                                          magnetic_field_strength,  // T_halfLife_uncapture - In the uncapture case,
-                                                                    // half of the MNPs in slurry phase decay back to
-                                                                    // liquid phase every T_halfLife seconds
-                                          a_eff_function,           // effective capture area function
-                                          capture_function,         // magnetic_field_strength_function
-                                          flowRateFunction,         // flowRateFunction
-                                          pc_D_ax_function);        // dispersion_coefficient_function
+                                          scale_n_cells(30),  // n_cells (scaled)
+                                          A_cross_pc,         // Cross-sectional area of the chamber
+                                          l_pc,               // Length/height of the discs in the chamber (total)
+                                          porosity_pc,        // Porosity of the empty chamber
+                                          25,                 // Number of disks in the chamber
+                                          8.0e-4,             // Height of each disc in the chamber
+                                          19,                 // Slurry factor - ratio of total slurry volume to MNP volume in slurry phase
+                                          2,             // deposition_rate - Empirical parameter in damping fator G to slow capture as approaching capacity
+                                          MNP_capacity,  // Maximum mass of magnetic particles that can be captured
+                                          magnetic_field_strength,  // Magnetic field strength (when turned on)
+                                          a_eff_function,           // Function that calculates a_eff (measuring the effectiveness of retaining) based on um/u0
+                                          capture_function,  // Function that calculates capture/uncapture rate based on time (to switch between capture and uncapture)
+                                          flowRateFunction,   // Function that gives flow rate based on time
+                                          pc_D_ax_function);  // Function that gives axial dispersion coefficient based on time
     pc->setConstInitialConcentration(buffer5_water);
 
     realtype V_inletRegion_pc = 4.113e-5;
@@ -914,12 +844,11 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     dead_volume->setConstInitialConcentration(buffer5_water);
 
     realtype l_pipe_outlet = 1.02;
-    auto pipe_outlet = std::make_shared<Pipe>(rs, scale_n(10), A_cross_pipes, l_pipe_outlet, flowRateFunction, D_ax_pipes);
+    auto pipe_outlet = std::make_shared<Pipe>(rs, scale_n_cells(10), A_cross_pipes, l_pipe_outlet, flowRateFunction, D_ax_pipes);
     pipe_outlet->setConstInitialConcentration(buffer5_water);
 
     realtype l_pipe_loop = 1.73;
-    auto pipe_loop = std::make_shared<Pipe>(rs, scale_n(10), A_cross_pipes, l_pipe_loop, flowRate_function_loop,
-                                            D_ax_pipes);
+    auto pipe_loop = std::make_shared<Pipe>(rs, scale_n_cells(10), A_cross_pipes, l_pipe_loop, flowRate_function_loop, D_ax_pipes);
     pipe_loop->setConstInitialConcentration(buffer5_water);
 
     // Calculate total duration
@@ -929,16 +858,14 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     }
     std::cout << "Total duration of the process: " << total_duration << " seconds." << std::endl;
 
-    Process process(cs, {inlet, pipe_inlet, pc, dead_volume, pipe_outlet, pipe_loop, frac_feed_1, frac_feed_2,
-                         frac_wash_1, frac_wash_2, frac_wash_3, frac_elution_1, frac_elution_2, frac_elution_3,
-                         frac_elution_4, frac_elution_5});  // TODO: t_end remove, make functions
-                                                            // robust to t>total_duration
+    Process process(cs, {inlet, pipe_inlet, pc, dead_volume, pipe_outlet, pipe_loop, frac_feed_1, frac_feed_2, frac_wash_1, frac_wash_2, frac_wash_3,
+                         frac_elution_1, frac_elution_2, frac_elution_3, frac_elution_4, frac_elution_5});  // TODO: t_end remove, make functions
+                                                                                                            // robust to t>total_duration
 
     // =============================================================
     // ========================== CONNECTIONS ======================
     // =============================================================
-    // WARNING: You need to check consistency of connections and flow rates for
-    // all times yourself!
+    // WARNING: You need to check consistency of connections and flow rates for all times yourself!
 
     // Inlet / Line connections
     process.addConnection(inlet->exit(), pipe_inlet->entry(), flowRate_function_line);
@@ -947,30 +874,18 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     process.addConnection(pipe_inlet->exit(), pc->entry(), flowRateFunction);
     process.addConnection(pc->exit(), dead_volume->entry(), flowRateFunction);
     process.addConnection(dead_volume->exit(), pipe_outlet->entry(), flowRateFunction);
-    // process.addConnection(pipe_outlet->exit(), outlet->entry(),
-    // flowRate_function_line);
 
     // Connections to fractions
-    process.addConnection(pipe_outlet->exit(), frac_feed_1->entry(),
-                          [&](realtype t) { return flowRate_function_frac(t, frac_feed_1); });
-    process.addConnection(pipe_outlet->exit(), frac_feed_2->entry(),
-                          [&](realtype t) { return flowRate_function_frac(t, frac_feed_2); });
-    process.addConnection(pipe_outlet->exit(), frac_wash_1->entry(),
-                          [&](realtype t) { return flowRate_function_frac(t, frac_wash_1); });
-    process.addConnection(pipe_outlet->exit(), frac_wash_2->entry(),
-                          [&](realtype t) { return flowRate_function_frac(t, frac_wash_2); });
-    process.addConnection(pipe_outlet->exit(), frac_wash_3->entry(),
-                          [&](realtype t) { return flowRate_function_frac(t, frac_wash_3); });
-    process.addConnection(pipe_outlet->exit(), frac_elution_1->entry(),
-                          [&](realtype t) { return flowRate_function_frac(t, frac_elution_1); });
-    process.addConnection(pipe_outlet->exit(), frac_elution_2->entry(),
-                          [&](realtype t) { return flowRate_function_frac(t, frac_elution_2); });
-    process.addConnection(pipe_outlet->exit(), frac_elution_3->entry(),
-                          [&](realtype t) { return flowRate_function_frac(t, frac_elution_3); });
-    process.addConnection(pipe_outlet->exit(), frac_elution_4->entry(),
-                          [&](realtype t) { return flowRate_function_frac(t, frac_elution_4); });
-    process.addConnection(pipe_outlet->exit(), frac_elution_5->entry(),
-                          [&](realtype t) { return flowRate_function_frac(t, frac_elution_5); });
+    process.addConnection(pipe_outlet->exit(), frac_feed_1->entry(), [&](realtype t) { return flowRate_function_frac(t, frac_feed_1); });
+    process.addConnection(pipe_outlet->exit(), frac_feed_2->entry(), [&](realtype t) { return flowRate_function_frac(t, frac_feed_2); });
+    process.addConnection(pipe_outlet->exit(), frac_wash_1->entry(), [&](realtype t) { return flowRate_function_frac(t, frac_wash_1); });
+    process.addConnection(pipe_outlet->exit(), frac_wash_2->entry(), [&](realtype t) { return flowRate_function_frac(t, frac_wash_2); });
+    process.addConnection(pipe_outlet->exit(), frac_wash_3->entry(), [&](realtype t) { return flowRate_function_frac(t, frac_wash_3); });
+    process.addConnection(pipe_outlet->exit(), frac_elution_1->entry(), [&](realtype t) { return flowRate_function_frac(t, frac_elution_1); });
+    process.addConnection(pipe_outlet->exit(), frac_elution_2->entry(), [&](realtype t) { return flowRate_function_frac(t, frac_elution_2); });
+    process.addConnection(pipe_outlet->exit(), frac_elution_3->entry(), [&](realtype t) { return flowRate_function_frac(t, frac_elution_3); });
+    process.addConnection(pipe_outlet->exit(), frac_elution_4->entry(), [&](realtype t) { return flowRate_function_frac(t, frac_elution_4); });
+    process.addConnection(pipe_outlet->exit(), frac_elution_5->entry(), [&](realtype t) { return flowRate_function_frac(t, frac_elution_5); });
 
     // Loop Connections
     process.addConnection(pipe_outlet->exit(), pipe_loop->entry(), flowRate_function_loop);
@@ -980,18 +895,6 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     // ========================== OBSERVER =========================
     // =============================================================
 
-    // Compute maximum flow rate and minimum cell_volume
-    // realtype max_flow_rate = pump_flowRate_Interpolator(40);  // Max at 40%
-    // pump percentage realtype min_cell_volume =
-    // std::min({pipe_inlet->cell_volume, pc->cell_volume_l_and_sl,
-    // dead_volume->cell_volume,
-    //                                      pipe_outlet->cell_volume,
-    //                                      pipe_loop->cell_volume});
-    // std::cout << "Max flow rate: " << max_flow_rate << " m³/s" << std::endl;
-    // std::cout << "Min cell volume: " << min_cell_volume << " m³" << std::endl;
-    // std::cout << "Cell volume l and sl pc: " << pc->cell_volume_l_and_sl << "
-    // m³" << std::endl;
-
     Solver solver(process, solverType);
 
     std::size_t dt_obs = 2.0;  // Observe every dt_obs seconds
@@ -999,47 +902,25 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     std::cout << "Number of observation time steps: " << n_obs_time_steps << std::endl;
 
     bool compute_errors = true;
-    TimeSeriesObserver obs_pipe_inlet(0, total_duration, n_obs_time_steps, pipe_inlet->all(), solver, save_obs,
-                                      compute_errors);
+    TimeSeriesObserver obs_pipe_inlet(0, total_duration, n_obs_time_steps, pipe_inlet->all(), solver, save_obs, compute_errors);
     TimeSeriesObserver obs_pc_liquid(0, total_duration, n_obs_time_steps, pc->liquid(), solver, save_obs, compute_errors);
     TimeSeriesObserver obs_pc_slurry(0, total_duration, n_obs_time_steps, pc->slurry(), solver, save_obs, compute_errors);
-    TimeSeriesObserver obs_pipe_oulet(0, total_duration, n_obs_time_steps, pipe_outlet->all(), solver, save_obs,
-                                      compute_errors);
-    TimeSeriesObserver obs_pipe_loop(0, total_duration, n_obs_time_steps, pipe_loop->all(), solver, save_obs,
-                                     compute_errors);
-    TimeSeriesObserver obs_frac_feed_1(0, total_duration, n_obs_time_steps, frac_feed_1->all(), solver, save_obs,
-                                       compute_errors);
-    TimeSeriesObserver obs_frac_feed_2(0, total_duration, n_obs_time_steps, frac_feed_2->all(), solver, save_obs,
-                                       compute_errors);
-    TimeSeriesObserver obs_frac_wash_1(0, total_duration, n_obs_time_steps, frac_wash_1->all(), solver, save_obs,
-                                       compute_errors);
-    TimeSeriesObserver obs_frac_wash_2(0, total_duration, n_obs_time_steps, frac_wash_2->all(), solver, save_obs,
-                                       compute_errors);
-    TimeSeriesObserver obs_frac_wash_3(0, total_duration, n_obs_time_steps, frac_wash_3->all(), solver, save_obs,
-                                       compute_errors);
-    TimeSeriesObserver obs_frac_elution_1(0, total_duration, n_obs_time_steps, frac_elution_1->all(), solver, save_obs,
-                                          compute_errors);
-    TimeSeriesObserver obs_frac_elution_2(0, total_duration, n_obs_time_steps, frac_elution_2->all(), solver, save_obs,
-                                          compute_errors);
-    TimeSeriesObserver obs_frac_elution_3(0, total_duration, n_obs_time_steps, frac_elution_3->all(), solver, save_obs,
-                                          compute_errors);
-    TimeSeriesObserver obs_frac_elution_4(0, total_duration, n_obs_time_steps, frac_elution_4->all(), solver, save_obs,
-                                          compute_errors);
-    TimeSeriesObserver obs_frac_elution_5(0, total_duration, n_obs_time_steps, frac_elution_5->all(), solver, save_obs,
-                                          compute_errors);
+    TimeSeriesObserver obs_pipe_oulet(0, total_duration, n_obs_time_steps, pipe_outlet->all(), solver, save_obs, compute_errors);
+    TimeSeriesObserver obs_pipe_loop(0, total_duration, n_obs_time_steps, pipe_loop->all(), solver, save_obs, compute_errors);
+    TimeSeriesObserver obs_frac_feed_1(0, total_duration, n_obs_time_steps, frac_feed_1->all(), solver, save_obs, compute_errors);
+    TimeSeriesObserver obs_frac_feed_2(0, total_duration, n_obs_time_steps, frac_feed_2->all(), solver, save_obs, compute_errors);
+    TimeSeriesObserver obs_frac_wash_1(0, total_duration, n_obs_time_steps, frac_wash_1->all(), solver, save_obs, compute_errors);
+    TimeSeriesObserver obs_frac_wash_2(0, total_duration, n_obs_time_steps, frac_wash_2->all(), solver, save_obs, compute_errors);
+    TimeSeriesObserver obs_frac_wash_3(0, total_duration, n_obs_time_steps, frac_wash_3->all(), solver, save_obs, compute_errors);
+    TimeSeriesObserver obs_frac_elution_1(0, total_duration, n_obs_time_steps, frac_elution_1->all(), solver, save_obs, compute_errors);
+    TimeSeriesObserver obs_frac_elution_2(0, total_duration, n_obs_time_steps, frac_elution_2->all(), solver, save_obs, compute_errors);
+    TimeSeriesObserver obs_frac_elution_3(0, total_duration, n_obs_time_steps, frac_elution_3->all(), solver, save_obs, compute_errors);
+    TimeSeriesObserver obs_frac_elution_4(0, total_duration, n_obs_time_steps, frac_elution_4->all(), solver, save_obs, compute_errors);
+    TimeSeriesObserver obs_frac_elution_5(0, total_duration, n_obs_time_steps, frac_elution_5->all(), solver, save_obs, compute_errors);
 
     TimeSeriesObserver obs_complete_y_vector(0, total_duration, n_obs_time_steps,
-                                             ArrayMapper(inlet.get(), solver.getYSize() / cs.n_components, cs.n_components),
-                                             solver, save_obs);
+                                             ArrayMapper(inlet.get(), solver.getYSize() / cs.n_components, cs.n_components), solver, save_obs);
     TimeSeriesObserver obs_pc_outlet(0, total_duration, n_obs_time_steps, pc->exit(), solver, save_obs);
-
-    // To observe:
-    // Elution Protein
-    // ph/Salts
-
-    // To optimize:
-    // Mass MP
-    // Elution steps
 
     // =============================================================
     // ========================== SOLVING ==========================
@@ -1083,22 +964,18 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
 
         // Convert pipe outlet data to pH values for each cell and save
         std::size_t cell_index = pipe_outlet->n_cells / 2;  // middle cell
-        ColVector pH_activity_pipe_outlet = convert_to_pH(obs_pipe_oulet, cell_index, pipe_outlet->cell_volume, cs,
-                                                          acitivityModel);
+        ColVector pH_activity_pipe_outlet = convert_to_pH(obs_pipe_oulet, cell_index, pipe_outlet->cell_volume, cs, acitivityModel);
         FS3::npy_save(obs_dir + "/pipe_outlet_middle_cell_pH_activity.npy", pH_activity_pipe_outlet.data(),
                       {static_cast<size_t>(pH_activity_pipe_outlet.size())}, "w");
-        ColVector pH_concentration_pipe_outlet = convert_to_pH(obs_pipe_oulet, cell_index, pipe_outlet->cell_volume, cs,
-                                                               NoActivityModel(cs));
+        ColVector pH_concentration_pipe_outlet = convert_to_pH(obs_pipe_oulet, cell_index, pipe_outlet->cell_volume, cs, NoActivityModel(cs));
         FS3::npy_save(obs_dir + "/pipe_outlet_middle_cell_pH_concentration.npy", pH_concentration_pipe_outlet.data(),
                       {static_cast<size_t>(pH_concentration_pipe_outlet.size())}, "w");
     }
 
-    std::cout << "Solved with " << internal_time_stamps.size() << " internal time stamps in " << t_solve_duration
-              << " seconds." << std::endl;
+    std::cout << "Solved with " << internal_time_stamps.size() << " internal time stamps in " << t_solve_duration << " seconds." << std::endl;
 
     if (t_solve_duration > timeout_seconds) {
-        std::cout << "WARNING: Solver timed out after " << timeout_seconds << " seconds at t=" << solver.getT() << " / "
-                  << total_duration << std::endl;
+        std::cout << "WARNING: Solver timed out after " << timeout_seconds << " seconds at t=" << solver.getT() << " / " << total_duration << std::endl;
     }
 
     return std::make_tuple(rs.max_error, t_solve_duration, internal_time_stamps.size());

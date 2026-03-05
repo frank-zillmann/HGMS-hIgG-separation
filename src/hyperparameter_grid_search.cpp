@@ -41,8 +41,7 @@ int main() {
 
     std::cout << "Starting hyperparameter grid search..." << std::endl;
     std::cout << "Grid size: " << n_disc << " x " << n_tau << " = " << n_disc * n_tau << " runs" << std::endl;
-    std::cout << "Timeout per run: " << timeout_seconds << " seconds (" << timeout_seconds / 60.0 << " minutes)"
-              << std::endl;
+    std::cout << "Timeout per run: " << timeout_seconds << " seconds (" << timeout_seconds / 60.0 << " minutes)" << std::endl;
 
     int run_counter = 0;
     auto total_start = std::chrono::high_resolution_clock::now();
@@ -56,19 +55,16 @@ int main() {
 
             std::cout << "\n========================================" << std::endl;
             std::cout << "Run " << run_counter << "/" << n_disc * n_tau << std::endl;
-            std::cout << "discretization_factor = " << discretization_factor << ", tau_reaction = " << tau_reaction
-                      << std::endl;
+            std::cout << "discretization_factor = " << discretization_factor << ", tau_reaction = " << tau_reaction << std::endl;
             std::cout << "========================================" << std::endl;
 
             try {
                 // Run simulation with timeout built into the solver
                 const realtype kf_ion_fixed = 1e10;  // keep k_f fixed; inverse method does not use it
-                auto [max_error, t_solve, internal_steps] = run_HGMS_hIgG_separation(kf_ion_fixed, tau_reaction, false,
-                                                                                     timeout_seconds, SolverType::ADAMS,
+                auto [max_error, t_solve, internal_steps] = run_HGMS_hIgG_separation(kf_ion_fixed, tau_reaction, false, timeout_seconds, SolverType::ADAMS,
                                                                                      discretization_factor);
 
-                std::cout << "Results: max_error = " << max_error << ", t_solve = " << t_solve
-                          << " s, internal_steps = " << internal_steps << std::endl;
+                std::cout << "Results: max_error = " << max_error << ", t_solve = " << t_solve << " s, internal_steps = " << internal_steps << std::endl;
 
                 max_errors.push_back(max_error);
                 solve_times.push_back(t_solve);
