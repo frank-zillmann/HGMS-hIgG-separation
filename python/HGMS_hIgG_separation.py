@@ -1,15 +1,33 @@
-"""Single-function Python port of src/HGMS_hIgG_separation.cpp using FS3 bindings.<
-Currently it has no lambda functions and therefore no Gouy-Chapman model and Langmuir absorption."""
-
-from __future__ import annotations
+"""Python port of src/HGMS_hIgG_separation.cpp using FS³'s python bindings."""
 
 import math
 from bisect import bisect_right
+from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
-
 import numpy as np
 import fs3
+
+elementary_charge = 1.602176634e-19
+avogadro = 6.02214076e23
+vacuum_permittivity = 8.8541878128e-12
+boltzmann = 1.380649e-23
+
+class FlowSheetConfig(Enum):
+    NO_FLOW = 0
+    LINE = 1
+    LOOP = 2
+
+@dataclass(slots=True)
+class RecipeSection:
+    name: str
+    t_duration: float
+    pump_percentage: float
+    mixing_percentage: float
+    flow_sheet_configuration: FlowSheetConfig
+    inlet_solution: np.ndarray
+    fraction: object
 
 
 def run_HGMS_hIgG_separation(
@@ -20,12 +38,6 @@ def run_HGMS_hIgG_separation(
     solver_type,
     discretization_factor: float,
 ):
-    del kf_ion  # Kept for signature parity with C++.
-
-    NO_FLOW = 0
-    LINE = 1
-    LOOP = 2
-
     # =============================================================
     # ========================== COMPONENTS =======================
     # =============================================================
@@ -96,16 +108,6 @@ def run_HGMS_hIgG_separation(
     mnp_ns = 1.08e-5
     mnp_specific_surface = 1e5
 
-    def one_cell_reaction(solution: np.ndarray, duration: float) -> tuple[np.ndarray, float]:
-        volume = fs3.Volume(rs, 1.0)
-        volume.set_const_initial_concentration(solution)
-        process_local = fs3.Process(cs, [volume])
-        solver_local = fs3.Solver(process_local, solver_type)
-        observer = fs3.SnapshotObserver(duration, volume.all(), True)
-        solver_local.add(observer)
-        solver_local.solve(t_stop=duration, timeout_seconds=timeout_seconds)
-        return np.asarray(observer.snapshot, dtype=np.float64).reshape(-1), float(observer.error)
-
     c_mnp_feed = 16.5
     v_mnps_feed = 0.000588
     c_higg_feed = 0.45
@@ -137,7 +139,7 @@ def run_HGMS_hIgG_separation(
         feed[cs.get_idx(f"MNP{i + 1}")] = c_mnp_feed * mnp_distribution[i]
     feed[cs.get_idx("MNP-OH")] = mnp_ns * mnp_specific_surface * c_mnp_feed
 
-    feed, feed_error = one_cell_reaction(feed, t_reaction_duration * 10.0)
+    feed, feed_error = fs3.one_cell_reaction(rs, feed, t_reaction_duration * 10.0, solver_type, timeout_seconds)
     pH_feed = -math.log10(feed[cs.get_idx("H⁺")] * 1e-3)
     q_feed = feed[cs.get_idx("MNP-hIgG")] / feed[cs.get_idx("MNP1") : cs.get_idx("MNP10") + 1].sum()
     q_max = float(np.interp(pH_feed, np.array([2.0, 2.5, 2.6, 3.5, 3.7, 4.5, 7.0]), np.array([0.00, 0.01, 0.02, 0.05, 0.13, 0.28, 0.31])))
@@ -151,7 +153,7 @@ def run_HGMS_hIgG_separation(
     buffer1[cs.get_idx("Na⁺")] = 0.15e3
     buffer1[cs.get_idx("Cl⁻")] = 0.019156e3 + 0.15e3
     buffer1[cs.get_idx("Tris")] = 0.02e3
-    buffer1, buffer1_error = one_cell_reaction(buffer1, t_reaction_duration)
+    buffer1, buffer1_error = fs3.one_cell_reaction(rs, buffer1, t_reaction_duration, solver_type, timeout_seconds)
     print(f"pH B1: {-math.log10(buffer1[cs.get_idx('H⁺')] * 1e-3)} (should be ~7)")
     print(f"B1 reaction error: {buffer1_error}")
 
@@ -161,7 +163,7 @@ def run_HGMS_hIgG_separation(
     buffer2[cs.get_idx("Na⁺")] = 0.2e3
     buffer2[cs.get_idx("Cl⁻")] = 0.072107e3
     buffer2[cs.get_idx("Ac⁻")] = 0.2e3
-    buffer2, buffer2_error = one_cell_reaction(buffer2, t_reaction_duration)
+    buffer2, buffer2_error = fs3.one_cell_reaction(rs, buffer2, t_reaction_duration, solver_type, timeout_seconds)
     print(f"pH B2: {-math.log10(buffer2[cs.get_idx('H⁺')] * 1e-3)} (should be ~4.75)")
     print(f"B2 reaction error: {buffer2_error}")
 
@@ -171,13 +173,13 @@ def run_HGMS_hIgG_separation(
     buffer3[cs.get_idx("Na⁺")] = 0.2e3
     buffer3[cs.get_idx("Cl⁻")] = 0.20221e3
     buffer3[cs.get_idx("Ac⁻")] = 0.2e3
-    buffer3, buffer3_error = one_cell_reaction(buffer3, t_reaction_duration)
+    buffer3, buffer3_error = fs3.one_cell_reaction(rs, buffer3, t_reaction_duration, solver_type, timeout_seconds)
     print(f"pH B3: {-math.log10(buffer3[cs.get_idx('H⁺')] * 1e-3)} (should be ~2.5)")
     print(f"B3 reaction error: {buffer3_error}")
 
     buffer5_water = np.full(cs.n_components, buffer_eps, dtype=np.float64)
     buffer5_water[cs.get_idx("H₂O")] = c_w
-    buffer5_water, buffer5_water_error = one_cell_reaction(buffer5_water, t_reaction_duration)
+    buffer5_water, buffer5_water_error = fs3.one_cell_reaction(rs, buffer5_water, t_reaction_duration, solver_type, timeout_seconds)
     print(f"pH B5: {-math.log10(buffer5_water[cs.get_idx('H⁺')] * 1e-3)} (should be ~7.0 / 6.5)")
     print(f"B5 reaction error: {buffer5_water_error}")
 
@@ -196,59 +198,59 @@ def run_HGMS_hIgG_separation(
     frac_elution_5 = fs3.Volume(rs)
 
     recipe = [
-        ("Load 1", 1199, 20, 0, LINE, feed, frac_feed_1),
-        ("Load 1 pause", 34, 0, 0, NO_FLOW, buffer5_water, None),
-        ("Load 2", 96, 20, 0, LINE, feed, frac_feed_1),
-        ("Load 2 pause", 33, 0, 0, NO_FLOW, buffer5_water, None),
-        ("Wash 1 fill", 50, 40, 0, LINE, buffer1, frac_feed_2),
-        ("Wash 1 resuspend", 65, 0, 60, NO_FLOW, buffer5_water, None),
-        ("Wash 1 resuspend loop", 51, 40, 50, LOOP, buffer5_water, None),
-        ("Wash 1 recapture", 69, 0, 0, NO_FLOW, buffer5_water, None),
-        ("Wash 1 recapture loop", 196, 30, 0, LOOP, buffer5_water, None),
-        ("Wash 1 pause", 6, 0, 0, NO_FLOW, buffer5_water, None),
-        ("Wash 2 fill", 50, 40, 0, LINE, buffer1, frac_wash_1),
-        ("Wash 2 resuspend", 65, 0, 60, NO_FLOW, buffer5_water, None),
-        ("Wash 2 resuspend loop", 51, 40, 50, LOOP, buffer5_water, None),
-        ("Wash 2 recapture", 69, 0, 0, NO_FLOW, buffer5_water, None),
-        ("Wash 2 recapture loop", 196, 30, 0, LOOP, buffer5_water, None),
-        ("Wash 2 pause", 14, 0, 0, NO_FLOW, buffer5_water, None),
-        ("Wash 3 fill", 50, 40, 0, LINE, buffer2, frac_wash_2),
-        ("Wash 3 resuspend", 65, 0, 60, NO_FLOW, buffer5_water, None),
-        ("Wash 3 resuspend loop", 51, 40, 50, LOOP, buffer5_water, None),
-        ("Wash 3 recapture", 69, 0, 0, NO_FLOW, buffer5_water, None),
-        ("Wash 3 recapture loop", 196, 30, 0, LOOP, buffer5_water, None),
-        ("Wash 3 pause", 13, 0, 0, NO_FLOW, buffer5_water, None),
-        ("Elution 1 fill", 52, 40, 0, LINE, buffer3, frac_wash_3),
-        ("Elution 1 resuspend", 90, 0, 60, NO_FLOW, buffer5_water, None),
-        ("Elution 1 resuspend loop", 300, 30, 40, LOOP, buffer5_water, None),
-        ("Elution 1 recapture", 60, 0, 0, NO_FLOW, buffer5_water, None),
-        ("Elution 1 recapture loop", 200, 30, 0, LOOP, buffer5_water, None),
-        ("Elution 1 pause", 7, 0, 0, NO_FLOW, buffer5_water, None),
-        ("Elution 2 fill", 52, 40, 0, LINE, buffer3, frac_elution_1),
-        ("Elution 2 resuspend", 90, 0, 60, NO_FLOW, buffer5_water, None),
-        ("Elution 2 resuspend loop", 300, 30, 40, LOOP, buffer5_water, None),
-        ("Elution 2 recapture", 60, 0, 0, NO_FLOW, buffer5_water, None),
-        ("Elution 2 recapture loop", 200, 30, 0, LOOP, buffer5_water, None),
-        ("Elution 2 pause", 9, 0, 0, NO_FLOW, buffer5_water, None),
-        ("Elution 3 fill", 52, 40, 0, LINE, buffer3, frac_elution_2),
-        ("Elution 3 resuspend", 90, 0, 60, NO_FLOW, buffer5_water, None),
-        ("Elution 3 resuspend loop", 300, 30, 40, LOOP, buffer5_water, None),
-        ("Elution 3 recapture", 60, 0, 0, NO_FLOW, buffer5_water, None),
-        ("Elution 3 recapture loop", 200, 30, 0, LOOP, buffer5_water, None),
-        ("Elution 3 pause", 10, 0, 0, NO_FLOW, buffer5_water, None),
-        ("Elution 4 fill", 52, 40, 0, LINE, buffer3, frac_elution_3),
-        ("Elution 4 resuspend", 90, 0, 60, NO_FLOW, buffer5_water, None),
-        ("Elution 4 resuspend loop", 300, 30, 40, LOOP, buffer5_water, None),
-        ("Elution 4 recapture", 60, 0, 0, NO_FLOW, buffer5_water, None),
-        ("Elution 4 recapture loop", 200, 30, 0, LOOP, buffer5_water, None),
-        ("Elution 4 pause", 154, 0, 0, NO_FLOW, buffer5_water, None),
-        ("Elution 5 fill", 52, 40, 0, LINE, buffer3, frac_elution_4),
-        ("Elution 5 resuspend", 90, 0, 60, NO_FLOW, buffer5_water, None),
-        ("Elution 5 resuspend loop", 300, 30, 40, LOOP, buffer5_water, None),
-        ("Elution 5 recapture", 60, 0, 0, NO_FLOW, buffer5_water, None),
-        ("Elution 5 recapture loop", 200, 30, 0, LOOP, buffer5_water, None),
-        ("Elution 5 pause", 170, 0, 0, NO_FLOW, buffer5_water, None),
-        ("Regeneration", 52, 25, 0, LINE, buffer1, frac_elution_5),
+        RecipeSection("Load 1", 1199, 20, 0, FlowSheetConfig.LINE, feed, frac_feed_1),
+        RecipeSection("Load 1 pause", 34, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
+        RecipeSection("Load 2", 96, 20, 0, FlowSheetConfig.LINE, feed, frac_feed_1),
+        RecipeSection("Load 2 pause", 33, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
+        RecipeSection("Wash 1 fill", 50, 40, 0, FlowSheetConfig.LINE, buffer1, frac_feed_2),
+        RecipeSection("Wash 1 resuspend", 65, 0, 60, FlowSheetConfig.NO_FLOW, buffer5_water, None),
+        RecipeSection("Wash 1 resuspend loop", 51, 40, 50, FlowSheetConfig.LOOP, buffer5_water, None),
+        RecipeSection("Wash 1 recapture", 69, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
+        RecipeSection("Wash 1 recapture loop", 196, 30, 0, FlowSheetConfig.LOOP, buffer5_water, None),
+        RecipeSection("Wash 1 pause", 6, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
+        RecipeSection("Wash 2 fill", 50, 40, 0, FlowSheetConfig.LINE, buffer1, frac_wash_1),
+        RecipeSection("Wash 2 resuspend", 65, 0, 60, FlowSheetConfig.NO_FLOW, buffer5_water, None),
+        RecipeSection("Wash 2 resuspend loop", 51, 40, 50, FlowSheetConfig.LOOP, buffer5_water, None),
+        RecipeSection("Wash 2 recapture", 69, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
+        RecipeSection("Wash 2 recapture loop", 196, 30, 0, FlowSheetConfig.LOOP, buffer5_water, None),
+        RecipeSection("Wash 2 pause", 14, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
+        RecipeSection("Wash 3 fill", 50, 40, 0, FlowSheetConfig.LINE, buffer2, frac_wash_2),
+        RecipeSection("Wash 3 resuspend", 65, 0, 60, FlowSheetConfig.NO_FLOW, buffer5_water, None),
+        RecipeSection("Wash 3 resuspend loop", 51, 40, 50, FlowSheetConfig.LOOP, buffer5_water, None),
+        RecipeSection("Wash 3 recapture", 69, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
+        RecipeSection("Wash 3 recapture loop", 196, 30, 0, FlowSheetConfig.LOOP, buffer5_water, None),
+        RecipeSection("Wash 3 pause", 13, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
+        RecipeSection("Elution 1 fill", 52, 40, 0, FlowSheetConfig.LINE, buffer3, frac_wash_3),
+        RecipeSection("Elution 1 resuspend", 90, 0, 60, FlowSheetConfig.NO_FLOW, buffer5_water, None),
+        RecipeSection("Elution 1 resuspend loop", 300, 30, 40, FlowSheetConfig.LOOP, buffer5_water, None),
+        RecipeSection("Elution 1 recapture", 60, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
+        RecipeSection("Elution 1 recapture loop", 200, 30, 0, FlowSheetConfig.LOOP, buffer5_water, None),
+        RecipeSection("Elution 1 pause", 7, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
+        RecipeSection("Elution 2 fill", 52, 40, 0, FlowSheetConfig.LINE, buffer3, frac_elution_1),
+        RecipeSection("Elution 2 resuspend", 90, 0, 60, FlowSheetConfig.NO_FLOW, buffer5_water, None),
+        RecipeSection("Elution 2 resuspend loop", 300, 30, 40, FlowSheetConfig.LOOP, buffer5_water, None),
+        RecipeSection("Elution 2 recapture", 60, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
+        RecipeSection("Elution 2 recapture loop", 200, 30, 0, FlowSheetConfig.LOOP, buffer5_water, None),
+        RecipeSection("Elution 2 pause", 9, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
+        RecipeSection("Elution 3 fill", 52, 40, 0, FlowSheetConfig.LINE, buffer3, frac_elution_2),
+        RecipeSection("Elution 3 resuspend", 90, 0, 60, FlowSheetConfig.NO_FLOW, buffer5_water, None),
+        RecipeSection("Elution 3 resuspend loop", 300, 30, 40, FlowSheetConfig.LOOP, buffer5_water, None),
+        RecipeSection("Elution 3 recapture", 60, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
+        RecipeSection("Elution 3 recapture loop", 200, 30, 0, FlowSheetConfig.LOOP, buffer5_water, None),
+        RecipeSection("Elution 3 pause", 10, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
+        RecipeSection("Elution 4 fill", 52, 40, 0, FlowSheetConfig.LINE, buffer3, frac_elution_3),
+        RecipeSection("Elution 4 resuspend", 90, 0, 60, FlowSheetConfig.NO_FLOW, buffer5_water, None),
+        RecipeSection("Elution 4 resuspend loop", 300, 30, 40, FlowSheetConfig.LOOP, buffer5_water, None),
+        RecipeSection("Elution 4 recapture", 60, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
+        RecipeSection("Elution 4 recapture loop", 200, 30, 0, FlowSheetConfig.LOOP, buffer5_water, None),
+        RecipeSection("Elution 4 pause", 154, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
+        RecipeSection("Elution 5 fill", 52, 40, 0, FlowSheetConfig.LINE, buffer3, frac_elution_4),
+        RecipeSection("Elution 5 resuspend", 90, 0, 60, FlowSheetConfig.NO_FLOW, buffer5_water, None),
+        RecipeSection("Elution 5 resuspend loop", 300, 30, 40, FlowSheetConfig.LOOP, buffer5_water, None),
+        RecipeSection("Elution 5 recapture", 60, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
+        RecipeSection("Elution 5 recapture loop", 200, 30, 0, FlowSheetConfig.LOOP, buffer5_water, None),
+        RecipeSection("Elution 5 pause", 170, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
+        RecipeSection("Regeneration", 52, 25, 0, FlowSheetConfig.LINE, buffer1, frac_elution_5),
     ]
 
     pump_percentages = np.array([0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90], dtype=np.float64)
@@ -262,7 +264,7 @@ def run_HGMS_hIgG_separation(
     cumulative_ends = []
     total_duration = 0.0
     for section in recipe:
-        total_duration += section[1]
+        total_duration += section.t_duration
         cumulative_ends.append(total_duration)
 
     def section_idx(t: float):
@@ -279,22 +281,22 @@ def run_HGMS_hIgG_separation(
         idx = section_idx(t)
         if idx is None:
             return interp_pump(0.0)
-        return interp_pump(recipe[idx][2])
+        return interp_pump(recipe[idx].pump_percentage)
 
     def pc_D_ax_function(t: float) -> float:
         idx = section_idx(t)
         if idx is None:
             return interp_dax(0.0)
-        return interp_dax(recipe[idx][3])
+        return interp_dax(recipe[idx].mixing_percentage)
 
     def capture_function(t: float) -> float:
         idx = section_idx(t)
         if idx is None:
             return 1.0
         section = recipe[idx]
-        if section[3] == 0.0:
+        if section.mixing_percentage == 0.0:
             return 1.0
-        t_start = cumulative_ends[idx] - section[1]
+        t_start = cumulative_ends[idx] - section.t_duration
         t_in_section = t - t_start
         uncapture_rate = math.log(2.0) / 5.0
         if t_in_section < 10.0:
@@ -304,34 +306,34 @@ def run_HGMS_hIgG_separation(
 
     def inlet_function(t: float):
         idx = section_idx(t)
-        return recipe[-1][5] if idx is None else recipe[idx][5]
+        return recipe[-1].inlet_solution if idx is None else recipe[idx].inlet_solution
 
     def flowRate_function(t: float) -> float:
         idx = section_idx(t)
         if idx is None:
             return interp_pump(0.0)
-        cfg = recipe[idx][4]
-        if cfg in (LINE, LOOP):
-            return interp_pump(recipe[idx][2])
+        cfg = recipe[idx].flow_sheet_configuration
+        if cfg in (FlowSheetConfig.LINE, FlowSheetConfig.LOOP):
+            return interp_pump(recipe[idx].pump_percentage)
         return 0.0
 
     def flowRate_function_line(t: float) -> float:
         idx = section_idx(t)
         if idx is None:
             return interp_pump(0.0)
-        return interp_pump(recipe[idx][2]) if recipe[idx][4] == LINE else 0.0
+        return interp_pump(recipe[idx].pump_percentage) if recipe[idx].flow_sheet_configuration == FlowSheetConfig.LINE else 0.0
 
     def flowRate_function_loop(t: float) -> float:
         idx = section_idx(t)
         if idx is None:
             return interp_pump(0.0)
-        return interp_pump(recipe[idx][2]) if recipe[idx][4] == LOOP else 0.0
+        return interp_pump(recipe[idx].pump_percentage) if recipe[idx].flow_sheet_configuration == FlowSheetConfig.LOOP else 0.0
 
     def flowRate_function_frac(t: float, fraction):
         idx = section_idx(t)
         if idx is None:
             return interp_pump(0.0)
-        return interp_pump(recipe[idx][2]) if recipe[idx][6] is fraction else 0.0
+        return interp_pump(recipe[idx].pump_percentage) if recipe[idx].fraction is fraction else 0.0
 
     # =============================================================
     # ========================== UNIT OPERATIONS ==================
