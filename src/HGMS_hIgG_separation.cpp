@@ -144,8 +144,8 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
             charges_nonzero_mask = (cs.getCharges() != 0).cast<realtype>(),
             // Precompute physical constants
             surface_charge_factor = constants::elementary_charge * constants::avogadro * MNP_Ns,
-            normalization_factor = 2 * cs.relative_permittivity * constants::vacuum_permittivity * constants::boltzmann * cs.temperature, MNP_specific_surface,
-            &reaction_OH2_plus, &reaction_OH](realtype t, const ConstArrayMap &concentrations, ArrayMap &activities) {
+            normalization_factor = 2 * cs.relative_permittivity * constants::vacuum_permittivity * constants::gas_constant * cs.temperature,
+            MNP_specific_surface, &reaction_OH2_plus, &reaction_OH](realtype t, const ConstArrayMap &concentrations, ArrayMap &activities) {
             const auto c_MNP_OH2_plus = concentrations.col(idx_MNP_OH2_plus);
             const auto c_MNP_OH = concentrations.col(idx_MNP_OH);
             const auto c_MNP_O_minus = concentrations.col(idx_MNP_O_minus);
@@ -155,10 +155,10 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
             const auto surface_groups_total = c_MNP_OH2_plus + c_MNP_OH + c_MNP_O_minus + 1e-12;
             const auto surface_charge = surface_charge_factor * (c_MNP_OH2_plus - c_MNP_O_minus) / surface_groups_total;
 
-            const auto n_0 = constants::avogadro * (concentrations.rowwise() * charges_nonzero_mask).rowwise().sum() +
-                             1e-5;  // Model breaks for zero ion concentration -> we assume there is always some tiny background concentration of 1e-5 mol/m³
+            const auto ion_concentration = (concentrations.rowwise() * charges_nonzero_mask).rowwise().sum() +
+                                           1e-5;  // Model breaks for zero ion concentration -> we assume there is always some tiny background concentration of 1e-5 mol/m³
 
-            const auto normalized_surface_charge = 0.5 * (surface_charge / ((normalization_factor * n_0).sqrt()));
+            const auto normalized_surface_charge = 0.5 * (surface_charge / ((normalization_factor * ion_concentration).sqrt()));
 
             const auto f = (-normalized_surface_charge + (normalized_surface_charge * normalized_surface_charge + 1).sqrt()).square();
 
@@ -201,7 +201,7 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
             ArrayMap modified_activities_map(modified_activities.data(), activities.rows(), activities.cols(), PhaseStride(activities.cols(), 1));
             ConstArrayMap modified_activities_const_map(modified_activities.data(), activities.rows(), activities.cols(), PhaseStride(activities.cols(), 1));
 
-            // reaction_H_plus_gouy_chapman(t, concentrations, modified_activities_map);
+            reaction_H_plus_gouy_chapman(t, concentrations, modified_activities_map);
             auto error_OH2_plus = reaction_OH2_plus.errorFunction(t, concentrations, modified_activities_const_map);
             return error_OH2_plus;
         }));
@@ -221,7 +221,7 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
             ArrayMap modified_activities_map(modified_activities.data(), activities.rows(), activities.cols(), PhaseStride(activities.cols(), 1));
             ConstArrayMap modified_activities_const_map(modified_activities.data(), activities.rows(), activities.cols(), PhaseStride(activities.cols(), 1));
 
-            // reaction_H_plus_gouy_chapman(t, concentrations, modified_activities_map);
+            reaction_H_plus_gouy_chapman(t, concentrations, modified_activities_map);
             auto error_OH = reaction_OH.errorFunction(t, concentrations, modified_activities_const_map);
 
             return error_OH;
