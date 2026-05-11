@@ -83,9 +83,8 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
          Component("MNP10").setType(Type::MagneticNanoParticle).setRadius(4043e-9).setDensity(5170).setMagneticSaturation(3.5e5)}};
 
     // Other global physical parameters
-    const realtype MNP_Ns = 1.08 * 1e-5;  // [mol/m²] - number of hydroxyl groups per area
-    // TODO: Where does this come from? Is radius correct or only nm scale? Then it would fit better with MNP_specific_surface
-    const realtype MNP_specific_surface = 1e5;  // m²/kg
+    const realtype MNP_Ns = 1.08 * 1e-5;        // [mol/m²] - hydroxyl groups per MNP surface area
+    const realtype MNP_specific_surface = 1e5;  // [m²/kg]
 
     // =============================================================
     // ========================== REACTIONS ========================
@@ -141,7 +140,6 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     auto reaction_H_plus_gouy_chapman =
         [  // Precompute indices directly in capture list
             idx_MNP_OH2_plus = cs.getIdx("MNP-OH₂⁺"), idx_MNP_OH = cs.getIdx("MNP-OH"), idx_MNP_O_minus = cs.getIdx("MNP-O⁻"), idx_H_plus = cs.getIdx("H⁺"),
-            idx_MNP1 = cs.getIdx("MNP1"), idx_MNP10 = cs.getIdx("MNP10"),
             // Precompute charge mask - only works for ions with z = 1 or z = -1
             charges_nonzero_mask = (cs.getCharges() != 0).cast<realtype>(),
             // Precompute physical constants
@@ -154,24 +152,15 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
             // Using H⁺ concentration here because original Gouy Chapman was derived like this -> TODO: look into newer approaches of Martin Bazant et al.
             const auto c_H_plus = concentrations.col(idx_H_plus);
 
-            const auto surface_charge_raw = surface_charge_factor * ((c_MNP_OH2_plus - c_MNP_O_minus) / (c_MNP_OH2_plus + c_MNP_OH + c_MNP_O_minus));
+            const auto surface_groups_total = c_MNP_OH2_plus + c_MNP_OH + c_MNP_O_minus + 1e-12;
+            const auto surface_charge = surface_charge_factor * (c_MNP_OH2_plus - c_MNP_O_minus) / surface_groups_total;
 
-            // Take absolute value here has the same effect as choosing the right sign for the sqrt later
-            const auto surface_charge = surface_charge_raw.isFinite().select(surface_charge_raw,
-                                                                             0.0);  // Replace non-finite with 0.0
-
-            const auto c_MNP = activities.middleCols(idx_MNP1, idx_MNP10 - idx_MNP1 + 1).rowwise().sum();
-            const auto surface_charge_MNP_alternative_raw = (constants::elementary_charge * constants::avogadro / MNP_specific_surface) *
-                                                            ((c_MNP_OH2_plus - c_MNP_O_minus) / c_MNP);
-            const auto surface_charge_MNP_alternative = surface_charge_MNP_alternative_raw.isFinite().select(surface_charge_MNP_alternative_raw, 0.0);
-
-            const auto n_0 = constants::avogadro * (concentrations.rowwise() * charges_nonzero_mask).rowwise().sum();
+            const auto n_0 = constants::avogadro * (concentrations.rowwise() * charges_nonzero_mask).rowwise().sum() +
+                             1e-5;  // Model breaks for zero ion concentration -> we assume there is always some tiny background concentration of 1e-5 mol/m³
 
             const auto normalized_surface_charge = 0.5 * (surface_charge / ((normalization_factor * n_0).sqrt()));
 
-            const auto f_raw = (-normalized_surface_charge + (normalized_surface_charge * normalized_surface_charge + 1).sqrt()).square();
-
-            const auto f = normalized_surface_charge.isFinite().select(f_raw, 0.0);
+            const auto f = (-normalized_surface_charge + (normalized_surface_charge * normalized_surface_charge + 1).sqrt()).square();
 
             const auto c_H_plus_surface = f * c_H_plus;
 
@@ -186,14 +175,10 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
                 oss << "MNP-OH₂⁺ concentration: " << c_MNP_OH2_plus.transpose() << "\n";
                 oss << "MNP-OH concentration : " << c_MNP_OH.transpose() << "\n";
                 oss << "MNP-O⁻ concentration: " << c_MNP_O_minus.transpose() << "\n";
-                oss << "Raw Surface charge: " << surface_charge_raw.transpose() << "\n";
                 oss << "Suface charge : " << surface_charge.transpose() << "\n";
-                oss << "Surface Charge MNP Alternative: " << surface_charge_MNP_alternative.transpose() << "\n";
                 oss << "N_0: " << n_0.transpose() << "\n";
                 oss << "Normalized surface charge : " << normalized_surface_charge.transpose() << "\n";
-                oss << "f_raw: " << f_raw.transpose() << "\n";
                 oss << "f: " << f.transpose() << "\n\n";
-
                 LOG("MNP_H+_gouy_chapman.log", oss.str());
             }
             call_count++;
@@ -216,7 +201,7 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
             ArrayMap modified_activities_map(modified_activities.data(), activities.rows(), activities.cols(), PhaseStride(activities.cols(), 1));
             ConstArrayMap modified_activities_const_map(modified_activities.data(), activities.rows(), activities.cols(), PhaseStride(activities.cols(), 1));
 
-            reaction_H_plus_gouy_chapman(t, concentrations, modified_activities_map);
+            // reaction_H_plus_gouy_chapman(t, concentrations, modified_activities_map);
             auto error_OH2_plus = reaction_OH2_plus.errorFunction(t, concentrations, modified_activities_const_map);
             return error_OH2_plus;
         }));
@@ -236,7 +221,7 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
             ArrayMap modified_activities_map(modified_activities.data(), activities.rows(), activities.cols(), PhaseStride(activities.cols(), 1));
             ConstArrayMap modified_activities_const_map(modified_activities.data(), activities.rows(), activities.cols(), PhaseStride(activities.cols(), 1));
 
-            reaction_H_plus_gouy_chapman(t, concentrations, modified_activities_map);
+            // reaction_H_plus_gouy_chapman(t, concentrations, modified_activities_map);
             auto error_OH = reaction_OH.errorFunction(t, concentrations, modified_activities_const_map);
 
             return error_OH;
