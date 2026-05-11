@@ -138,68 +138,67 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     auto reaction_OH2_plus = massActionLaw_inverseRatePrediction(cs, "MNP-OH₂⁺ <=> MNP-OH + H⁺", Ks_MNP_OH2_plus, tau_reaction, cs.getIdx("H⁺"));
     auto reaction_OH = massActionLaw_inverseRatePrediction(cs, "MNP-OH <=> MNP-O⁻ + H⁺ ", Ks_MNP_OH, tau_reaction, cs.getIdx("H⁺"));
 
-    auto reaction_H_plus_gouy_chapman = [  // Precompute indices directly in capture list
-                                            idx_MNP_OH2_plus = cs.getIdx("MNP-OH₂⁺"), idx_MNP_OH = cs.getIdx("MNP-OH"), idx_MNP_O_minus = cs.getIdx("MNP-O⁻"),
-                                            idx_H_plus = cs.getIdx("H⁺"), idx_MNP1 = cs.getIdx("MNP1"), idx_MNP10 = cs.getIdx("MNP10"),
-                                            // Precompute charge mask - only works for ions with z = 1 or z = -1
-                                            charges_nonzero_mask = (cs.getCharges() != 0).cast<realtype>(),
-                                            // Precompute physical constants
-                                            surface_charge_factor = constants::elementary_charge * constants::avogadro * MNP_Ns,
-                                            normalization_factor = 2 * cs.relative_permittivity * constants::vacuum_permittivity * constants::boltzmann *
-                                                                   cs.temperature,
-                                            MNP_specific_surface, &reaction_OH2_plus,
-                                            &reaction_OH](realtype t, const ConstArrayMap &concentrations, ArrayMap &activities) {
-        const auto c_MNP_OH2_plus = concentrations.col(idx_MNP_OH2_plus);
-        const auto c_MNP_OH = concentrations.col(idx_MNP_OH);
-        const auto c_MNP_O_minus = concentrations.col(idx_MNP_O_minus);
-        const auto c_H_plus = concentrations.col(
-            idx_H_plus);  // Using H⁺ concentration here because original Gouy Chapman was derived like this -> TODO: discuss newer approaches of Martin Bazant et al.
+    auto reaction_H_plus_gouy_chapman =
+        [  // Precompute indices directly in capture list
+            idx_MNP_OH2_plus = cs.getIdx("MNP-OH₂⁺"), idx_MNP_OH = cs.getIdx("MNP-OH"), idx_MNP_O_minus = cs.getIdx("MNP-O⁻"), idx_H_plus = cs.getIdx("H⁺"),
+            idx_MNP1 = cs.getIdx("MNP1"), idx_MNP10 = cs.getIdx("MNP10"),
+            // Precompute charge mask - only works for ions with z = 1 or z = -1
+            charges_nonzero_mask = (cs.getCharges() != 0).cast<realtype>(),
+            // Precompute physical constants
+            surface_charge_factor = constants::elementary_charge * constants::avogadro * MNP_Ns,
+            normalization_factor = 2 * cs.relative_permittivity * constants::vacuum_permittivity * constants::boltzmann * cs.temperature, MNP_specific_surface,
+            &reaction_OH2_plus, &reaction_OH](realtype t, const ConstArrayMap &concentrations, ArrayMap &activities) {
+            const auto c_MNP_OH2_plus = concentrations.col(idx_MNP_OH2_plus);
+            const auto c_MNP_OH = concentrations.col(idx_MNP_OH);
+            const auto c_MNP_O_minus = concentrations.col(idx_MNP_O_minus);
+            // Using H⁺ concentration here because original Gouy Chapman was derived like this -> TODO: look into newer approaches of Martin Bazant et al.
+            const auto c_H_plus = concentrations.col(idx_H_plus);
 
-        const auto surface_charge_raw = surface_charge_factor * ((c_MNP_OH2_plus - c_MNP_O_minus) / (c_MNP_OH2_plus + c_MNP_OH + c_MNP_O_minus));
+            const auto surface_charge_raw = surface_charge_factor * ((c_MNP_OH2_plus - c_MNP_O_minus) / (c_MNP_OH2_plus + c_MNP_OH + c_MNP_O_minus));
 
-        // Take absolute value here has the same effect as choosing the right sign for the sqrt later
-        const auto surface_charge = surface_charge_raw.isFinite().select(surface_charge_raw,
-                                                                         0.0);  // Replace non-finite with 0.0
+            // Take absolute value here has the same effect as choosing the right sign for the sqrt later
+            const auto surface_charge = surface_charge_raw.isFinite().select(surface_charge_raw,
+                                                                             0.0);  // Replace non-finite with 0.0
 
-        const auto c_MNP = activities.middleCols(idx_MNP1, idx_MNP10 - idx_MNP1 + 1).rowwise().sum();
-        const auto surface_charge_MNP_alternative_raw = (constants::elementary_charge * constants::avogadro / MNP_specific_surface) *
-                                                        ((c_MNP_OH2_plus - c_MNP_O_minus) / c_MNP);
-        const auto surface_charge_MNP_alternative = surface_charge_MNP_alternative_raw.isFinite().select(surface_charge_MNP_alternative_raw, 0.0);
+            const auto c_MNP = activities.middleCols(idx_MNP1, idx_MNP10 - idx_MNP1 + 1).rowwise().sum();
+            const auto surface_charge_MNP_alternative_raw = (constants::elementary_charge * constants::avogadro / MNP_specific_surface) *
+                                                            ((c_MNP_OH2_plus - c_MNP_O_minus) / c_MNP);
+            const auto surface_charge_MNP_alternative = surface_charge_MNP_alternative_raw.isFinite().select(surface_charge_MNP_alternative_raw, 0.0);
 
-        const auto n_0 = constants::avogadro * (concentrations.rowwise() * charges_nonzero_mask).rowwise().sum();
+            const auto n_0 = constants::avogadro * (concentrations.rowwise() * charges_nonzero_mask).rowwise().sum();
 
-        const auto normalized_surface_charge = 0.5 * (surface_charge / ((normalization_factor * n_0).sqrt()));
+            const auto normalized_surface_charge = 0.5 * (surface_charge / ((normalization_factor * n_0).sqrt()));
 
-        const auto f_raw = (-normalized_surface_charge + (normalized_surface_charge * normalized_surface_charge + 1).sqrt()).square();
+            const auto f_raw = (-normalized_surface_charge + (normalized_surface_charge * normalized_surface_charge + 1).sqrt()).square();
 
-        const auto f = normalized_surface_charge.isFinite().select(f_raw, 0.0);
+            const auto f = normalized_surface_charge.isFinite().select(f_raw, 0.0);
 
-        const auto c_H_plus_surface = f * c_H_plus;
+            const auto c_H_plus_surface = f * c_H_plus;
 
-        activities.col(idx_H_plus) = c_H_plus_surface;
+            activities.col(idx_H_plus) = c_H_plus_surface;
 
 #if LOG_ENABLED
-        static int call_count = 0;
-        if (call_count < LOG_FIRST_N_CALLS || call_count % LOG_EVERY_N_CALLS == 0) {
-            std::ostringstream oss;
-            oss << "Call count: " << call_count << " at t= " << t << "\n";
-            oss << "H⁺ concentration: " << c_H_plus.transpose() << "\n";
-            oss << "MNP-OH₂⁺ concentration: " << c_MNP_OH2_plus.transpose() << "\n";
-            oss << "MNP-OH concentration : " << c_MNP_OH.transpose() << "\n";
-            oss << "MNP-O⁻ concentration: " << c_MNP_O_minus.transpose() << "\n";
-            oss << "Raw Surface charge: " << surface_charge_raw.transpose() << "\n";
-            oss << "Suface charge : " << surface_charge.transpose() << "\n";
-            oss << "Surface Charge MNP Alternative: " << surface_charge_MNP_alternative.transpose() << "\n";
-            oss << "N_0: " << n_0.transpose() << "\n";
-            oss << "Normalized surface charge : " << normalized_surface_charge.transpose() << "\n";
-            oss << "f_raw: " << f_raw.transpose() << "\n";
-            oss << "f: " << f.transpose() << "\n\n";
+            static int call_count = 0;
+            if (call_count < LOG_FIRST_N_CALLS || call_count % LOG_EVERY_N_CALLS == 0) {
+                std::ostringstream oss;
+                oss << "Call count: " << call_count << " at t= " << t << "\n";
+                oss << "H⁺ concentration: " << c_H_plus.transpose() << "\n";
+                oss << "MNP-OH₂⁺ concentration: " << c_MNP_OH2_plus.transpose() << "\n";
+                oss << "MNP-OH concentration : " << c_MNP_OH.transpose() << "\n";
+                oss << "MNP-O⁻ concentration: " << c_MNP_O_minus.transpose() << "\n";
+                oss << "Raw Surface charge: " << surface_charge_raw.transpose() << "\n";
+                oss << "Suface charge : " << surface_charge.transpose() << "\n";
+                oss << "Surface Charge MNP Alternative: " << surface_charge_MNP_alternative.transpose() << "\n";
+                oss << "N_0: " << n_0.transpose() << "\n";
+                oss << "Normalized surface charge : " << normalized_surface_charge.transpose() << "\n";
+                oss << "f_raw: " << f_raw.transpose() << "\n";
+                oss << "f: " << f.transpose() << "\n\n";
 
-            LOG("MNP_H+_gouy_chapman.log", oss.str());
-        }
-        call_count++;
+                LOG("MNP_H+_gouy_chapman.log", oss.str());
+            }
+            call_count++;
 #endif
-    };
+        };
 
     // amphoteric MNP hydroxl group reactions
     rs.add(Reaction(
