@@ -23,6 +23,7 @@
 #include "PhysicalConstants.hpp"
 #include "Process.hpp"
 #include "Reactions/ActivityModels.hpp"
+#include "Reactions/GouyChapman.hpp"
 #include "Reactions/MassActionLaw.hpp"
 #include "Reactions/OneCellReaction.hpp"
 #include "Reactions/Reaction.hpp"
@@ -137,95 +138,11 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     auto reaction_OH2_plus = massActionLaw_inverseRatePrediction(cs, "MNP-OH₂⁺ <=> MNP-OH + H⁺", Ks_MNP_OH2_plus, tau_reaction, cs.getIdx("H⁺"));
     auto reaction_OH = massActionLaw_inverseRatePrediction(cs, "MNP-OH <=> MNP-O⁻ + H⁺ ", Ks_MNP_OH, tau_reaction, cs.getIdx("H⁺"));
 
-    auto reaction_H_plus_gouy_chapman =
-        [  // Precompute indices directly in capture list
-            idx_MNP_OH2_plus = cs.getIdx("MNP-OH₂⁺"), idx_MNP_OH = cs.getIdx("MNP-OH"), idx_MNP_O_minus = cs.getIdx("MNP-O⁻"), idx_H_plus = cs.getIdx("H⁺"),
-            // Precompute charge mask - only works for ions with z = 1 or z = -1
-            charges_nonzero_mask = (cs.getCharges() != 0).cast<realtype>(),
-            // Precompute physical constants
-            surface_charge_factor = constants::elementary_charge * constants::avogadro * MNP_Ns,
-            normalization_factor = 2 * cs.relative_permittivity * constants::vacuum_permittivity * constants::gas_constant * cs.temperature,
-            MNP_specific_surface, &reaction_OH2_plus, &reaction_OH](realtype t, const ConstArrayMap &concentrations, ArrayMap &activities) {
-            const auto c_MNP_OH2_plus = concentrations.col(idx_MNP_OH2_plus);
-            const auto c_MNP_OH = concentrations.col(idx_MNP_OH);
-            const auto c_MNP_O_minus = concentrations.col(idx_MNP_O_minus);
-            // Using H⁺ concentration here because original Gouy Chapman was derived like this -> TODO: look into newer approaches of Martin Bazant et al.
-            const auto c_H_plus = concentrations.col(idx_H_plus);
+    const GouyChapmanModel gouy_chapman_model(cs, "MNP-OH₂⁺", "MNP-OH", "MNP-O⁻", "H⁺", MNP_Ns);
 
-            const auto surface_groups_total = c_MNP_OH2_plus + c_MNP_OH + c_MNP_O_minus + 1e-12;
-            const auto surface_charge = surface_charge_factor * (c_MNP_OH2_plus - c_MNP_O_minus) / surface_groups_total;
-
-            const auto ion_concentration = (concentrations.rowwise() * charges_nonzero_mask).rowwise().sum() +
-                                           1e-5;  // Model breaks for zero ion concentration -> we assume there is always some tiny background concentration of 1e-5 mol/m³
-
-            const auto normalized_surface_charge = 0.5 * (surface_charge / ((normalization_factor * ion_concentration).sqrt()));
-
-            const auto f = (-normalized_surface_charge + (normalized_surface_charge * normalized_surface_charge + 1).sqrt()).square();
-
-            const auto c_H_plus_surface = f * c_H_plus;
-
-            activities.col(idx_H_plus) = c_H_plus_surface;
-
-#if LOG_ENABLED
-            static int call_count = 0;
-            if (call_count < LOG_FIRST_N_CALLS || call_count % LOG_EVERY_N_CALLS == 0) {
-                std::ostringstream oss;
-                oss << "Call count: " << call_count << " at t= " << t << "\n";
-                oss << "H⁺ concentration: " << c_H_plus.transpose() << "\n";
-                oss << "MNP-OH₂⁺ concentration: " << c_MNP_OH2_plus.transpose() << "\n";
-                oss << "MNP-OH concentration : " << c_MNP_OH.transpose() << "\n";
-                oss << "MNP-O⁻ concentration: " << c_MNP_O_minus.transpose() << "\n";
-                oss << "Suface charge : " << surface_charge.transpose() << "\n";
-                oss << "N_0: " << n_0.transpose() << "\n";
-                oss << "Normalized surface charge : " << normalized_surface_charge.transpose() << "\n";
-                oss << "f: " << f.transpose() << "\n\n";
-                LOG("MNP_H+_gouy_chapman.log", oss.str());
-            }
-            call_count++;
-#endif
-        };
-
-    // amphoteric MNP hydroxl group reactions
-    rs.add(Reaction(
-        [=](realtype t, const ConstArrayMap &concentrations, const ConstArrayMap &activities, ArrayMap &dc_dt) {
-            Array modified_activities{activities};
-            ArrayMap modified_activities_map(modified_activities.data(), activities.rows(), activities.cols(), PhaseStride(activities.cols(), 1));
-            ConstArrayMap modified_activities_const_map(modified_activities.data(), activities.rows(), activities.cols(), PhaseStride(activities.cols(), 1));
-
-            reaction_H_plus_gouy_chapman(t, concentrations, modified_activities_map);
-            reaction_OH2_plus.rhs(t, concentrations, modified_activities_const_map, dc_dt);
-        },
-
-        [=](realtype t, const ConstArrayMap &concentrations, const ConstArrayMap &activities) -> realtype {
-            Array modified_activities{activities};
-            ArrayMap modified_activities_map(modified_activities.data(), activities.rows(), activities.cols(), PhaseStride(activities.cols(), 1));
-            ConstArrayMap modified_activities_const_map(modified_activities.data(), activities.rows(), activities.cols(), PhaseStride(activities.cols(), 1));
-
-            reaction_H_plus_gouy_chapman(t, concentrations, modified_activities_map);
-            auto error_OH2_plus = reaction_OH2_plus.errorFunction(t, concentrations, modified_activities_const_map);
-            return error_OH2_plus;
-        }));
-
-    rs.add(Reaction(
-        [=](realtype t, const ConstArrayMap &concentrations, const ConstArrayMap &activities, ArrayMap &dc_dt) {
-            Array modified_activities{activities};
-            ArrayMap modified_activities_map(modified_activities.data(), activities.rows(), activities.cols(), PhaseStride(activities.cols(), 1));
-            ConstArrayMap modified_activities_const_map(modified_activities.data(), activities.rows(), activities.cols(), PhaseStride(activities.cols(), 1));
-
-            reaction_H_plus_gouy_chapman(t, concentrations, modified_activities_map);
-            reaction_OH.rhs(t, concentrations, modified_activities_const_map, dc_dt);
-        },
-
-        [=](realtype t, const ConstArrayMap &concentrations, const ConstArrayMap &activities) -> realtype {
-            Array modified_activities{activities};
-            ArrayMap modified_activities_map(modified_activities.data(), activities.rows(), activities.cols(), PhaseStride(activities.cols(), 1));
-            ConstArrayMap modified_activities_const_map(modified_activities.data(), activities.rows(), activities.cols(), PhaseStride(activities.cols(), 1));
-
-            reaction_H_plus_gouy_chapman(t, concentrations, modified_activities_map);
-            auto error_OH = reaction_OH.errorFunction(t, concentrations, modified_activities_const_map);
-
-            return error_OH;
-        }));
+    // amphoteric MNP hydroxyl group reactions with Gouy-Chapman surface activity correction
+    rs.add(wrap_reaction(reaction_OH2_plus, gouy_chapman_model));
+    rs.add(wrap_reaction(reaction_OH, gouy_chapman_model));
 
     // Inverse fitted Langmuir parameters
     ColVector langmuir_pH(7);

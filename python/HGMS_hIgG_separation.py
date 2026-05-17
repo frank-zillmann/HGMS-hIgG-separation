@@ -73,6 +73,9 @@ def run_HGMS_hIgG_separation(
         ]
     )
 
+    mnp_ns = 1.08e-5
+    mnp_specific_surface = 1e5
+
     # =============================================================
     # ========================== REACTIONS ========================
     # =============================================================
@@ -96,17 +99,30 @@ def run_HGMS_hIgG_separation(
     rs.add(fs3.mass_action_law_inverse_rate_prediction(cs, "GlyH₂⁺ <=> GlyH + H⁺", ks_gly_h2_plus, tau_reaction, cs.get_idx("H⁺")))
     rs.add(fs3.mass_action_law_inverse_rate_prediction(cs, "GlyH <=> Gly⁻ + H⁺", ks_gly_h, tau_reaction, cs.get_idx("H⁺")))
 
-    # Closest available binding. The custom C++ Gouy-Chapman callback is not exposed in Python yet.
-    rs.add(fs3.mass_action_law_inverse_rate_prediction(cs, "MNP-OH₂⁺ <=> MNP-OH + H⁺", ks_mnp_oh2_plus, tau_reaction, cs.get_idx("H⁺")))
-    rs.add(fs3.mass_action_law_inverse_rate_prediction(cs, "MNP-OH <=> MNP-O⁻ + H⁺ ", ks_mnp_oh, tau_reaction, cs.get_idx("H⁺")))
+    gouy_chapman_model = fs3.GouyChapmanModel(
+        cs,
+        "MNP-OH₂⁺",
+        "MNP-OH",
+        "MNP-O⁻",
+        "H⁺",
+        mnp_ns,
+    )
+
+    reaction_oh2_plus = fs3.mass_action_law_inverse_rate_prediction(
+        cs, "MNP-OH₂⁺ <=> MNP-OH + H⁺", ks_mnp_oh2_plus, tau_reaction, cs.get_idx("H⁺")
+    )
+    reaction_oh = fs3.mass_action_law_inverse_rate_prediction(
+        cs, "MNP-OH <=> MNP-O⁻ + H⁺ ", ks_mnp_oh, tau_reaction, cs.get_idx("H⁺")
+    )
+
+    rs.add(fs3.wrap_reaction(reaction_oh2_plus, gouy_chapman_model))
+    rs.add(fs3.wrap_reaction(reaction_oh, gouy_chapman_model))
 
     # =============================================================
     # ========================== SOLUTIONS ========================
     # =============================================================
     buffer_eps = 0.0
     t_reaction_duration = 100.0
-    mnp_ns = 1.08e-5
-    mnp_specific_surface = 1e5
 
     c_mnp_feed = 16.5
     v_mnps_feed = 0.000588
