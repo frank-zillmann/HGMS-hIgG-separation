@@ -118,6 +118,30 @@ def run_HGMS_hIgG_separation(
     rs.add(fs3.wrap_reaction(reaction_oh2_plus, gouy_chapman_model))
     rs.add(fs3.wrap_reaction(reaction_oh, gouy_chapman_model))
 
+    langmuir_ph = np.array([2.0, 2.5, 2.6, 3.5, 3.7, 4.5, 7.0], dtype=np.float64)
+    langmuir_k_b = np.array([0.03, 2.14, 2.28, 3.22, 3.84, 35.15, 36.52], dtype=np.float64)
+    langmuir_q_max = np.array([0.00, 0.01, 0.02, 0.05, 0.13, 0.28, 0.31], dtype=np.float64)
+
+    def langmuir_k_b_from_pH(pH: float) -> float:
+        return float(np.interp(pH, langmuir_ph, langmuir_k_b))
+
+    def langmuir_q_max_from_pH(pH: float) -> float:
+        return float(np.interp(pH, langmuir_ph, langmuir_q_max))
+
+    rs.add(
+        fs3.langmuir_binding_reaction(
+            cs.get_idx("H⁺"),
+            cs.get_idx("MNP1"),
+            cs.get_idx("MNP10"),
+            cs.get_idx("MNP-hIgG"),
+            cs.get_idx("hIgG"),
+            cs["hIgG"].molar_mass,
+            langmuir_k_b_from_pH,
+            langmuir_q_max_from_pH,
+            tau_reaction,
+        )
+    )
+
     # =============================================================
     # ========================== SOLUTIONS ========================
     # =============================================================
@@ -158,7 +182,7 @@ def run_HGMS_hIgG_separation(
     feed, feed_error = fs3.one_cell_reaction(rs, feed, t_reaction_duration * 10.0, solver_type, timeout_seconds)
     pH_feed = -math.log10(feed[cs.get_idx("H⁺")] * 1e-3)
     q_feed = feed[cs.get_idx("MNP-hIgG")] / feed[cs.get_idx("MNP1") : cs.get_idx("MNP10") + 1].sum()
-    q_max = float(np.interp(pH_feed, np.array([2.0, 2.5, 2.6, 3.5, 3.7, 4.5, 7.0]), np.array([0.00, 0.01, 0.02, 0.05, 0.13, 0.28, 0.31])))
+    q_max = langmuir_q_max_from_pH(pH_feed)
     print(f"pH feed: {pH_feed} (should be ~7.3)")
     print(f"q feed: {q_feed} q_max at this pH: {q_max}")
     print(f"Feed reaction error: {feed_error}")
@@ -541,5 +565,5 @@ if __name__ == "__main__":
         True,
         float("inf"),
         fs3.SolverType.ERK,
-        0.1,
+        0.5,
     )

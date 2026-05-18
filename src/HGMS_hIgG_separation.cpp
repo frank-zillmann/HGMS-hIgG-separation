@@ -24,6 +24,7 @@
 #include "Process.hpp"
 #include "Reactions/ActivityModels.hpp"
 #include "Reactions/GouyChapman.hpp"
+#include "Reactions/Langmuir.hpp"
 #include "Reactions/MassActionLaw.hpp"
 #include "Reactions/OneCellReaction.hpp"
 #include "Reactions/Reaction.hpp"
@@ -165,141 +166,10 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     LinearInterpolator<ColVector> langmuir_q_max_interpolator(langmuir_pH, langmuir_q_max);
 
     // Langmuir adsorption reaction for MNP-HIgG
-    rs.add(Reaction([
-                        // Precompute indices directly in capture list
-                        idx_H_plus = cs.getIdx("H⁺"), idx_MNP1 = cs.getIdx("MNP1"), idx_MNP10 = cs.getIdx("MNP10"), idx_MNP_hIgG = cs.getIdx("MNP-hIgG"),
-                        idx_hIgG = cs.getIdx("hIgG"), M_hIgG = cs("hIgG").molarMass, langmuir_K_B_interpolator, langmuir_q_max_interpolator,
-                        tau_reaction](realtype t, const ConstArrayMap &concentrations, const ConstArrayMap &activities, ArrayMap &dc_dt) {
-        // TODO: Maybe change to true activity based pH calculation later
-        const auto pH = -(concentrations.col(idx_H_plus)).log10() + 3;  // +3 because pH is defined w.r.t. mol/L instead of mol/m³
-        const auto pH_activity = -(activities.col(idx_H_plus)).log10() + 3;
-        LOG("pH_conc_vs_pH_activity.log",
-            "Time: " + std::to_string(t) + ", pH_conc: " + std::to_string(pH(0)) + ", pH_activity: " + std::to_string(pH_activity(0)) + "\n");
-        const auto c_MNP = activities.middleCols(idx_MNP1, idx_MNP10 - idx_MNP1 + 1).rowwise().sum();
-        const auto c_hIgG = activities.col(idx_hIgG);
-        const auto c_MNP_hIgG = activities.col(idx_MNP_hIgG);
-
-        auto dc_dt_MNP_hIgG = dc_dt.col(idx_MNP_hIgG);
-        auto dc_dt_hIgG = dc_dt.col(idx_hIgG);
-
-        // k_ads/k_des = K_B must be in m³/mol (not in L/g)
-        const auto K_B_raw = pH.unaryExpr(langmuir_K_B_interpolator);  // in L/g = m³/kg
-        const auto K_B = K_B_raw * M_hIgG;                             // in m³/mol
-
-        const auto q_max = pH.unaryExpr(langmuir_q_max_interpolator);
-
-        // Devide by molar mass of Protein to account for q being m_MNP_hIgG /
-        // m_MNP -> (q_max - c_MNP_hIgG / c_MNP) * c_MNP / M_hIgG gives molar
-        // concentration of binding sites rate = k_ads * c_hIgG * (q_max - q) *
-        // (c_MNP / M_hIgG) - k_des * c_MNP_hIgG = 0 at equilibrium k_ads +
-        // (c_hIgG - r) * (q_max - (C_MNP_hIgG + r) / c_MNP) * (c_MNP / M_hIgG)
-        // - k_des * (c_MNP_hIgG + r) = 0
-
-        const auto p = c_MNP_hIgG - c_hIgG - c_MNP * q_max - M_hIgG / K_B;
-        const auto q_tilde = c_hIgG * (c_MNP * q_max - c_MNP_hIgG) - (M_hIgG * c_MNP_hIgG / K_B);
-
-        const auto radicant = (p.square() - 4.0 * q_tilde).sqrt();
-
-        const auto delta_xi_2 = (-p - radicant) / 2.0;
-
-        // Assuming delta_xi_2 is the physically correct solution
-        const auto net_rate = delta_xi_2 / tau_reaction;
-        dc_dt_MNP_hIgG += net_rate;
-        dc_dt_hIgG -= net_rate;
-
-#if LOG_ENABLED || !defined(NDEBUG)
-        // const auto residual_current = K_B * c_hIgG * (q_max - c_MNP_hIgG /
-        // c_MNP) * (c_MNP / M_hIgG) - c_MNP_hIgG;
-        const auto Q_current = c_MNP_hIgG / (c_hIgG * (q_max - c_MNP_hIgG / c_MNP) * (c_MNP / M_hIgG));
-
-        const auto q_raw = c_MNP_hIgG / c_MNP;
-        const auto q = (q_raw.isFinite() && (q_raw >= 0.0) && (q_raw <= q_max)).select(q_raw, q_max);
-
-        const auto delta_xi_1 = (-p + radicant) / 2.0;
-
-        const auto c_hIgG_eq_1 = c_hIgG - delta_xi_1;
-        const auto c_MNP_hIgG_eq_1 = c_MNP_hIgG + delta_xi_1;
-        // const auto residual_eq_1 = K_B * c_hIgG_eq_1 * (q_max -
-        // c_MNP_hIgG_eq_1 / c_MNP) * (c_MNP / M_hIgG) -
-        //                            c_MNP_hIgG_eq_1;
-        const auto Q_eq_1 = c_MNP_hIgG_eq_1 / (c_hIgG_eq_1 * (q_max - c_MNP_hIgG_eq_1 / c_MNP) * (c_MNP / M_hIgG));
-        // Set NaN/Inf values to 0 to avoid assertion failures when dividing by
-        // zero
-        const auto Q_relative_error_1_raw = (Q_eq_1 - K_B).cwiseAbs() / K_B;
-        const auto Q_relative_error_1 = Q_relative_error_1_raw.isFinite().select(Q_relative_error_1_raw, 0.0);
-
-        const auto c_hIgG_eq_2 = c_hIgG - delta_xi_2;
-        const auto c_MNP_hIgG_eq_2 = c_MNP_hIgG + delta_xi_2;
-        // const auto residual_eq_2 = K_B * c_hIgG_eq_2 * (q_max -
-        // c_MNP_hIgG_eq_2 / c_MNP) * (c_MNP / M_hIgG) -
-        //                            c_MNP_hIgG_eq_2;
-        const auto Q_eq_2 = c_MNP_hIgG_eq_2 / (c_hIgG_eq_2 * (q_max - c_MNP_hIgG_eq_2 / c_MNP) * (c_MNP / M_hIgG));
-        // Set NaN/Inf values to 0 to avoid assertion failures when dividing by
-        // zero
-        const auto Q_relative_error_2_raw = (Q_eq_2 - K_B).cwiseAbs() / K_B;
-        const auto Q_relative_error_2 = Q_relative_error_2_raw.isFinite().select(Q_relative_error_2_raw, 0.0);
-#endif
-#if LOG_ENABLED
-
-        static int call_count = 0;
-        if (call_count < LOG_FIRST_N_CALLS || call_count % LOG_EVERY_N_CALLS == 0) {
-            std::ostringstream oss;
-            oss.precision(6);
-            oss << std::scientific;
-            oss << "MNP-hIgG adsorption reaction call " << call_count << " at t = " << t << " seconds\n";
-            oss << "pH:\n" << pH.transpose() << "\n";
-            oss << "c_MNP:\n" << c_MNP.transpose() << "\n";
-            oss << "c_hIgG:\n" << c_hIgG.transpose() << "\n";
-            oss << "c_MNP_hIgG:\n" << c_MNP_hIgG.transpose() << "\n";
-            oss << "q_raw:\n" << q_raw.transpose() << "\n";
-            oss << "q:\n" << q.transpose() << "\n";
-            oss << "K_B:\n" << K_B.transpose() << "\n";
-            oss << "q_max:\n" << q_max.transpose() << "\n";
-            // oss << "residual_current:\n" << residual_current.transpose() <<
-            // "\n";
-            oss << "Q_current:\n" << Q_current.transpose() << "\n";
-            oss << "p:\n" << p.transpose() << "\n";
-            oss << "q_tilde:\n" << q_tilde.transpose() << "\n";
-            oss << "Radicant:\n" << radicant.transpose() << "\n";
-            oss << "delta_xi_1:\n" << delta_xi_1.transpose() << "\n";
-            oss << "c_hIgG_eq_1:\n" << c_hIgG_eq_1.transpose() << "\n";
-            oss << "c_MNP_hIgG_eq_1:\n" << c_MNP_hIgG_eq_1.transpose() << "\n";
-            // oss << "residual_eq_1:\n" << residual_eq_1.transpose() << "\n";
-            oss << "Q_eq_1:\n" << Q_eq_1.transpose() << "\n";
-            oss << "Relative error Q_eq_1 vs K_B:\n" << Q_relative_error_1.transpose() << "\n";
-            oss << "delta_xi_2:\n" << delta_xi_2.transpose() << "\n";
-            oss << "c_hIgG_eq_2:\n" << c_hIgG_eq_2.transpose() << "\n";
-            oss << "c_MNP_hIgG_eq_2:\n" << c_MNP_hIgG_eq_2.transpose() << "\n";
-            // oss << "residual_eq_2:\n" << residual_eq_2.transpose() << "\n";
-            oss << "Q_eq_2:\n" << Q_eq_2.transpose() << "\n";
-            oss << "Relative error Q_eq_2 vs K_B:\n" << Q_relative_error_2.transpose() << "\n";
-            oss << "dr/dt:\n" << net_rate.transpose() << "\n\n";
-
-            LOG("MNP_hIgG_adsorption_rhs.log", oss.str());
-        }
-        call_count++;
-#endif
-        assert(((c_hIgG_eq_2 + 1e-12) >= 0).all() && ((c_MNP_hIgG_eq_2 + 1e-12) >= 0).all() && "Equilibrium concentrations (solution 2) must be non-negative");
-
-        assert(((c_hIgG_eq_1 - 1e-12) < 0).all() || ((c_MNP_hIgG_eq_1 - 1e-12) < 0).all() &&
-                                                        "Equilibrium concentrations (solution 1) should contain "
-                                                        "negative values");
-
-        // Skip these assertions because they are fragile e.g. for extremely
-        // dilute solutions, etc.
-
-        // assert((Q_relative_error_2 < 1e-1).all() &&
-        //        "Equilibrium concentrations (solution 2) must satisfy
-        //        equilibrium condition");
-
-        // assert((residual_eq_1.abs() < 1e-6).all() &&
-        //        "Equilibrium concentrations (solution 1) must satisfy
-        //        equilibrium condition");
-
-        // assert((residual_eq_2.abs() < residual_current.abs()).all() &&
-        //        "Equilibrium concentrations (solution 2) must be closer to
-        //        equilibrium than current concentrations");
-    }));
+    auto k_b_from_pH = [langmuir_K_B_interpolator](realtype pH) { return langmuir_K_B_interpolator(pH); };
+    auto q_max_from_pH = [langmuir_q_max_interpolator](realtype pH) { return langmuir_q_max_interpolator(pH); };
+    rs.add(langmuir_binding_reaction(cs.getIdx("H⁺"), cs.getIdx("MNP1"), cs.getIdx("MNP10"), cs.getIdx("MNP-hIgG"), cs.getIdx("hIgG"), cs("hIgG").molarMass,
+                                     k_b_from_pH, q_max_from_pH, tau_reaction));
 
     // =============================================================
     // ========================== SOLUTIONS ========================
