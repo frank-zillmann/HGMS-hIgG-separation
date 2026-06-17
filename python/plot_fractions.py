@@ -9,10 +9,16 @@ np.nan so you can access a uniform structure without special cases.
 Units: grams [g]
 """
 
-import numpy as np
-import matplotlib.pyplot as plt
 import os
-from shared_data import idx, path_to_obs_dict, path_to_save, show_plots
+from typing import Dict, Optional, Tuple
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+from model import build_component_system
+from shared_data import path_to_obs_dict as shared_path_to_obs_dict
+from shared_data import path_to_save as shared_path_to_save
+from shared_data import show_plots as shared_show_plots
 
 # ---- Static values copied from the figure (all in grams) --------------------
 # Fraction ordering keys used throughout (Feed and Wash intentionally NaN)
@@ -59,68 +65,53 @@ fraction_colors = {
     "Elution 5": {"face": "#cfe2f3", "edge": None},
 }
 
-component = "hIgG" #"H⁺" # "H₂O" # "hIgG"
-factor_raw_to_g = 1000
-component_idx = idx[component]
-time_idx = -1  # Last time point
+def plot_fractions(
+    path_to_obs_dict: Optional[Dict[str, str]] = None,
+    path_to_save: Optional[str] = None,
+    show_plots: Optional[bool] = None,
+    component: str = "hIgG",
+    plotted_fraction_names: Optional[list] = None,
+    save_plots: bool = True,
+    close_fig: bool = True,
+) -> Tuple[plt.Figure, Optional[str]]:
+    if path_to_obs_dict is None:
+        path_to_obs_dict = shared_path_to_obs_dict
+    if path_to_save is None:
+        path_to_save = shared_path_to_save
+    if show_plots is None:
+        show_plots = shared_show_plots
 
-"""
-Load and prepare datasets
-- For simulations: iterate over path_to_obs_dict in order and add each dataset by its key
-- For paper/Matlab values: append after simulation datasets so they appear on the right
-"""
-all_datasets = dict()
+    factor_raw_to_g = 1000
+    component_idx = build_component_system().get_idx(component)
+    time_idx = -1  # Last time point
 
-# --- LOAD DATA FROM ALL PROVIDED SIMULATIONS (ordered) --------------
-for sim_name, obs_path in path_to_obs_dict.items():
-    npz_path = os.path.join(obs_path, "unit_operations.npz")
-    if not os.path.exists(npz_path):
-        print(f"Warning: Missing simulation data at {npz_path}; skipping '{sim_name}'.")
-        continue
-    unit_operation_data = np.load(npz_path)
+    if plotted_fraction_names is None:
+        plotted_fraction_names = all_fraction_names[-5:] + all_fraction_names[:5]
 
-    frac_feed_1_data = unit_operation_data["frac_feed_1"]  # (time, cells, components)
-    frac_feed_2_data = unit_operation_data["frac_feed_2"]
-    frac_wash_1_data = unit_operation_data["frac_wash_1"]
-    frac_wash_2_data = unit_operation_data["frac_wash_2"]
-    frac_wash_3_data = unit_operation_data["frac_wash_3"]
-    frac_elution_1_data = unit_operation_data["frac_elution_1"]
-    frac_elution_2_data = unit_operation_data["frac_elution_2"]
-    frac_elution_3_data = unit_operation_data["frac_elution_3"]
-    frac_elution_4_data = unit_operation_data["frac_elution_4"]
-    frac_elution_5_data = unit_operation_data["frac_elution_5"]
+    all_datasets: Dict[str, Dict[str, float]] = {}
 
-    frac_dict = {
-        "Feed 1": frac_feed_1_data,
-        "Feed 2": frac_feed_2_data,
-        "Wash 1": frac_wash_1_data,
-        "Wash 2": frac_wash_2_data,
-        "Wash 3": frac_wash_3_data,
-        "Elution 1": frac_elution_1_data,
-        "Elution 2": frac_elution_2_data,
-        "Elution 3": frac_elution_3_data,
-        "Elution 4": frac_elution_4_data,
-        "Elution 5": frac_elution_5_data,
+    for sim_name, obs_path in path_to_obs_dict.items():
+        npz_path = os.path.join(obs_path, "unit_operations.npz")
+        if not os.path.exists(npz_path):
+            print(f"Warning: Missing simulation data at {npz_path}; skipping '{sim_name}'.")
+            continue
+        unit_operation_data = np.load(npz_path)
+
+        values_g = np.array([
+            unit_operation_data[name][time_idx, 0, component_idx] for name in all_fraction_names
+        ]) * factor_raw_to_g
+
+        all_datasets[sim_name] = {name: val for name, val in zip(all_fraction_names, values_g)}
+
+    _nan_block = {
+        "Feed 1": np.nan,
+        "Feed 2": np.nan,
+        "Wash 1": np.nan,
+        "Wash 2": np.nan,
+        "Wash 3": np.nan,
     }
 
-    # Convert to grams and adapt to the same structure
-    values_g = np.array([
-        frac_dict[name][time_idx, 0, component_idx] for name in all_fraction_names
-    ]) * factor_raw_to_g
-
-    all_datasets[sim_name] = {name: val for name, val in zip(all_fraction_names, values_g)}
-
-# NaN block used for data from the paper figure
-_nan_block = {
-    "Feed 1": np.nan,
-    "Feed 2": np.nan,
-    "Wash 1": np.nan,
-    "Wash 2": np.nan,
-    "Wash 3": np.nan,
-}
-
-# Exact values read from the provided image
-all_datasets["Experiment"] = {
+    all_datasets["Experiment"] = {
         **_nan_block,
         "Elution 1": 0.32,
         "Elution 2": 0.63,
@@ -169,78 +160,75 @@ all_datasets["Experiment"] = {
 #         "Elution 5": 0.10,
 #     }
 
-print(f"All datasets: {all_datasets}")
+    print(f"All datasets: {all_datasets}")
 
-# --- PLOT STACKED BARS FOR ALL SCENARIOS ------------------------------------
+    fig_width = max(8, int(1.2 * len(all_datasets) + 4))
+    fig, ax = plt.subplots(figsize=(fig_width, 6))
 
-fig_width = max(8, int(1.2 * len(all_datasets) + 4))
-fig, ax = plt.subplots(figsize=(fig_width, 6))
+    spacing_factor = 0.5
+    x = np.arange(len(all_datasets)) * spacing_factor
+    bar_width = 0.4
 
-# Compress horizontal spacing between category bars by scaling x positions
-# Keep bar width fixed at 0.5, adjust only the space between bar centers
-spacing_factor = 0.5  # gap ≈ spacing_factor - bar_width = 0.05
-x = np.arange(len(all_datasets)) * spacing_factor
-bar_width = 0.4
+    for si, scenario in enumerate(all_datasets.keys()):
+        bottom = 0.0
+        for fraction_name in plotted_fraction_names:
+            value = all_datasets[scenario][fraction_name]
+            if np.isnan(value):
+                continue
+            color_info = fraction_colors.get(fraction_name, None)
+            if isinstance(color_info, dict):
+                face_color = color_info["face"]
+                edge_color = color_info["edge"] if color_info["edge"] is not None else "#ffffff"
+            else:
+                face_color = color_info
+                edge_color = "#ffffff"
+            ax.bar(
+                x[si],
+                value,
+                width=bar_width,
+                bottom=bottom,
+                color=face_color,
+                edgecolor=edge_color,
+                linewidth=1.5,
+                label=fraction_name if si == 0 else None,
+            )
+            y = bottom + value / 2.0
+            ax.text(x[si], y, f"{value:.2g}", ha="center", va="center", color="black", fontsize=9)
+            print(f"{scenario} — {fraction_name}: {value} g")
+            bottom += value
 
-for si, scenario in enumerate(all_datasets.keys()):
-    bottom = 0.0
-    for fi, fraction_name in enumerate(plotted_fraction_names):
-        value = all_datasets[scenario][fraction_name]
-        if np.isnan(value):
-            continue
-        color_info = fraction_colors.get(fraction_name, None)
-        if isinstance(color_info, dict):
-            face_color = color_info["face"]
-            edge_color = color_info["edge"] if color_info["edge"] is not None else "#ffffff"
-        else:
-            face_color = color_info
-            edge_color = "#ffffff"
-        ax.bar(
-            x[si],
-            value,
-            width=bar_width,
-            bottom=bottom,
-            color=face_color,
-            edgecolor=edge_color,
-            linewidth=1.5,
-            label=fraction_name if si == 0 else None,
-        )
-        # value label centered in segment
-        y = bottom + value / 2.0
-        ax.text(x[si], y, f"{value:.2g}", ha="center", va="center", color="black", fontsize=9)
-        print(f"{scenario} — {fraction_name}: {value} g")
-        bottom += value
+    ax.set_xticks(x)
+    ax.set_xticklabels(
+        list(all_datasets.keys()),
+        rotation=-10,
+        ha="left",
+        rotation_mode="anchor",
+    )
+    ax.tick_params(axis="x", pad=4)
+    ax.margins(x=0.0)
 
-ax.set_xticks(x)
-# Left-anchor rotated labels so they start at the column (tick position)
-ax.set_xticklabels(
-    list(all_datasets.keys()),
-    rotation=-10,
-    ha="left",
-    rotation_mode="anchor",
-)
-# Small padding and horizontal margins to avoid clipping on the right
-ax.tick_params(axis="x", pad=4)
-# Reduce horizontal margins; we'll also set tight x-limits around the bars
-ax.margins(x=0.0)
+    left_pad = 0.1
+    right_pad = 0.6
+    ax.set_xlim(x[0] - bar_width / 2 - left_pad, x[-1] + bar_width / 2 + right_pad)
+    ax.set_ylabel(f"Mass {component} [g]")
+    ax.set_title(f"Fractions of {component}")
+    ax.legend(title="Fraction", loc="upper right")
+    plt.tight_layout()
 
-# Decrease space between the leftmost bar and the y-axis and pack bars a bit
-left_pad = 0.1
-right_pad = 0.6
-ax.set_xlim(x[0] - bar_width / 2 - left_pad, x[-1] + bar_width / 2 + right_pad)
-ax.set_ylabel(f"Mass {component} [g]")
-ax.set_title(f"Fractions of {component}")
-ax.legend(title="Fraction", loc="upper right")
-plt.tight_layout()
+    outfile = None
+    if save_plots:
+        os.makedirs(path_to_save, exist_ok=True)
+        outfile = os.path.join(path_to_save, "plot_fractions.pdf")
+        fig.savefig(outfile, bbox_inches="tight")
+        print(f"Saved to {outfile}!")
 
-# Save to configured results directory as PDF
-os.makedirs(path_to_save, exist_ok=True)
-outfile = os.path.join(path_to_save, "plot_fractions.pdf")
-fig.savefig(outfile, bbox_inches="tight")
-print(f"Saved to {outfile}!")
+    if show_plots:
+        plt.show()
+    elif close_fig:
+        plt.close(fig)
 
-# Only show plots if configured
-if show_plots:
-    plt.show()
-else:
-    plt.close('all')
+    return fig, outfile
+
+
+if __name__ == "__main__":
+    plot_fractions()

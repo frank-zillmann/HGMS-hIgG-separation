@@ -9,8 +9,11 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import os
 import matplotlib.gridspec as gridspec
-from shared_data import idx, path_to_obs, path_to_save, show_plots
+from model import build_component_system
+from shared_data import path_to_obs, path_to_save, show_plots
 import matplotlib.cm as cm
+
+cs = build_component_system()
 
 
 # --- CONFIGURATION ---
@@ -109,7 +112,7 @@ for name, [data, group_ax, group_lines, group_lims] in unit_ops.items():
             line, = group_ax[i].plot([0], [0], label=comp, color=color)
             component_lines.append(line)
 
-            comp_data = data[:, :, idx[comp]].flatten()
+            comp_data = data[:, :, cs.get_idx(comp)].flatten()
             y_min = np.min(comp_data)
             y_max = np.max(comp_data)
             # y_min = np.percentile(comp_data, 0)
@@ -150,7 +153,7 @@ def animate(frame):
         x = np.arange(data.shape[1])
         for j, components in enumerate(component_groups):
             for k, comp in enumerate(components):
-                y = data[frame, :, idx[comp]]
+                y = data[frame, :, cs.get_idx(comp)]
                 group_lines[j][k].set_data(x, y)
 
             # Mirror x-axis for Loop axes only

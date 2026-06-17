@@ -2,32 +2,15 @@
 
 import math
 from bisect import bisect_right
-from dataclasses import dataclass
 from datetime import datetime
-from enum import Enum
 from pathlib import Path
+from typing import Optional, Sequence, Tuple, Union
+
 import numpy as np
+
 import fs3
-
-elementary_charge = 1.602176634e-19
-avogadro = 6.02214076e23
-vacuum_permittivity = 8.8541878128e-12
-boltzmann = 1.380649e-23
-
-class FlowSheetConfig(Enum):
-    NO_FLOW = 0
-    LINE = 1
-    LOOP = 2
-
-@dataclass(slots=True)
-class RecipeSection:
-    name: str
-    t_duration: float
-    pump_percentage: float
-    mixing_percentage: float
-    flow_sheet_configuration: FlowSheetConfig
-    inlet_solution: np.ndarray
-    fraction: object
+from model import build_component_system, build_reaction_system, build_solutions
+from shared_data import FRACTIONS, FlowSheetConfig, RecipeStep, default_recipe
 
 
 def run_HGMS_hIgG_separation(
@@ -37,261 +20,22 @@ def run_HGMS_hIgG_separation(
     timeout_seconds: float,
     solver_type,
     discretization_factor: float,
+    recipe_steps: Optional[Sequence[RecipeStep]] = None,
+    output_base_dir: Optional[Union[str, Path]] = None,
+    run_tag: Optional[str] = None,
+    return_paths: bool = False,
 ):
-    # =============================================================
-    # ========================== COMPONENTS =======================
-    # =============================================================
-    cs = fs3.ComponentSystem(
-        [
-            fs3.Component("H₂O", molar_mass_kg_per_mol=18.01528e-3),
-            fs3.Component("H⁺", charge=1, molar_mass_kg_per_mol=1.008e-3, truesdell_jones_alpha=4.78e-10, truesdell_jones_beta=0.24e-3),
-            fs3.Component("OH⁻", charge=-1, molar_mass_kg_per_mol=17.007e-3, truesdell_jones_alpha=10.65e-10, truesdell_jones_beta=0.21e-3),
-            fs3.Component("Na⁺", charge=1, molar_mass_kg_per_mol=22.990e-3, truesdell_jones_alpha=4.32e-10, truesdell_jones_beta=0.06e-3),
-            fs3.Component("Cl⁻", charge=-1, molar_mass_kg_per_mol=35.453e-3, truesdell_jones_alpha=3.71e-10, truesdell_jones_beta=0.01e-3),
-            fs3.Component("TrisH⁺", charge=1, molar_mass_kg_per_mol=121.14e-3, truesdell_jones_alpha=4.0e-10, truesdell_jones_beta=0.0e-3),
-            fs3.Component("Tris", molar_mass_kg_per_mol=121.14e-3),
-            fs3.Component("AcH", molar_mass_kg_per_mol=60.052e-3),
-            fs3.Component("Ac⁻", charge=-1, molar_mass_kg_per_mol=59.044e-3, truesdell_jones_alpha=4.5e-10, truesdell_jones_beta=0.0e-3),
-            fs3.Component("GlyH₂⁺", charge=1, molar_mass_kg_per_mol=75.067e-3),
-            fs3.Component("GlyH", molar_mass_kg_per_mol=75.067e-3),
-            fs3.Component("Gly⁻", charge=-1, molar_mass_kg_per_mol=74.059e-3, truesdell_jones_alpha=4.0e-10, truesdell_jones_beta=0.0e-3),
-            fs3.Component("hIgG", molar_mass_kg_per_mol=150.0),
-            fs3.Component("MNP-OH₂⁺", type=fs3.ComponentType.MagneticNanoParticleGroup, molar_mass_kg_per_mol=18.015e-3),
-            fs3.Component("MNP-OH", type=fs3.ComponentType.MagneticNanoParticleGroup, molar_mass_kg_per_mol=17.007e-3),
-            fs3.Component("MNP-O⁻", type=fs3.ComponentType.MagneticNanoParticleGroup, molar_mass_kg_per_mol=15.999e-3),
-            fs3.Component("MNP-hIgG", type=fs3.ComponentType.MagneticNanoParticleGroup, molar_mass_kg_per_mol=150000e-3),
-            fs3.Component("MNP1", type=fs3.ComponentType.MagneticNanoParticle, radius_m=1039e-9, density_kg_per_m3=5170, magnetic_saturation_A_per_m=3.5e5),
-            fs3.Component("MNP2", type=fs3.ComponentType.MagneticNanoParticle, radius_m=1209e-9, density_kg_per_m3=5170, magnetic_saturation_A_per_m=3.5e5),
-            fs3.Component("MNP3", type=fs3.ComponentType.MagneticNanoParticle, radius_m=1406e-9, density_kg_per_m3=5170, magnetic_saturation_A_per_m=3.5e5),
-            fs3.Component("MNP4", type=fs3.ComponentType.MagneticNanoParticle, radius_m=1635e-9, density_kg_per_m3=5170, magnetic_saturation_A_per_m=3.5e5),
-            fs3.Component("MNP5", type=fs3.ComponentType.MagneticNanoParticle, radius_m=1901e-9, density_kg_per_m3=5170, magnetic_saturation_A_per_m=3.5e5),
-            fs3.Component("MNP6", type=fs3.ComponentType.MagneticNanoParticle, radius_m=2211e-9, density_kg_per_m3=5170, magnetic_saturation_A_per_m=3.5e5),
-            fs3.Component("MNP7", type=fs3.ComponentType.MagneticNanoParticle, radius_m=2571e-9, density_kg_per_m3=5170, magnetic_saturation_A_per_m=3.5e5),
-            fs3.Component("MNP8", type=fs3.ComponentType.MagneticNanoParticle, radius_m=2990e-9, density_kg_per_m3=5170, magnetic_saturation_A_per_m=3.5e5),
-            fs3.Component("MNP9", type=fs3.ComponentType.MagneticNanoParticle, radius_m=3477e-9, density_kg_per_m3=5170, magnetic_saturation_A_per_m=3.5e5),
-            fs3.Component("MNP10", type=fs3.ComponentType.MagneticNanoParticle, radius_m=4043e-9, density_kg_per_m3=5170, magnetic_saturation_A_per_m=3.5e5),
-        ]
-    )
+    cs = build_component_system()
+    rs, activity_model = build_reaction_system(cs, tau_reaction)
+    solutions = build_solutions(cs, rs, solver_type, timeout_seconds)
+    water = solutions["Water (B5)"].concentrations
 
-    mnp_ns = 1.08e-5
-    mnp_specific_surface = 1e5
-
-    # =============================================================
-    # ========================== REACTIONS ========================
-    # =============================================================
-    activity_model = fs3.TruesdellJonesActivityModel(cs)
-    rs = fs3.ReactionSystem(cs, activity_model)
-
-    k_w = 10.0 ** (-14) * 1e6
-    c_w = 1000.0 / cs["H₂O"].molar_mass
-
-    ks_w = k_w / c_w
-    ks_tris_h_plus = 10.0 ** (-8.3) * 1e3
-    ks_ac_h = 10.0 ** (-4.75) * 1e3
-    ks_gly_h2_plus = 10.0 ** (-2.35) * 1e3
-    ks_gly_h = 10.0 ** (-9.78) * 1e3
-    ks_mnp_oh2_plus = 10.0 ** (-(7.9 - 0.5 * 2.5)) * 1e3
-    ks_mnp_oh = 10.0 ** (-(7.9 + 0.5 * 2.5)) * 1e3
-
-    rs.add(fs3.mass_action_law_inverse_rate_prediction(cs, "H₂O <=> H⁺ + OH⁻", ks_w, tau_reaction, cs.get_idx("H⁺")))
-    rs.add(fs3.mass_action_law_inverse_rate_prediction(cs, "TrisH⁺ <=> Tris + H⁺", ks_tris_h_plus, tau_reaction, cs.get_idx("H⁺")))
-    rs.add(fs3.mass_action_law_inverse_rate_prediction(cs, "AcH <=> Ac⁻ + H⁺", ks_ac_h, tau_reaction, cs.get_idx("H⁺")))
-    rs.add(fs3.mass_action_law_inverse_rate_prediction(cs, "GlyH₂⁺ <=> GlyH + H⁺", ks_gly_h2_plus, tau_reaction, cs.get_idx("H⁺")))
-    rs.add(fs3.mass_action_law_inverse_rate_prediction(cs, "GlyH <=> Gly⁻ + H⁺", ks_gly_h, tau_reaction, cs.get_idx("H⁺")))
-
-    gouy_chapman_model = fs3.GouyChapmanModel(
-        cs,
-        "MNP-OH₂⁺",
-        "MNP-OH",
-        "MNP-O⁻",
-        "H⁺",
-        mnp_ns,
-    )
-
-    reaction_oh2_plus = fs3.mass_action_law_inverse_rate_prediction(
-        cs, "MNP-OH₂⁺ <=> MNP-OH + H⁺", ks_mnp_oh2_plus, tau_reaction, cs.get_idx("H⁺")
-    )
-    reaction_oh = fs3.mass_action_law_inverse_rate_prediction(
-        cs, "MNP-OH <=> MNP-O⁻ + H⁺ ", ks_mnp_oh, tau_reaction, cs.get_idx("H⁺")
-    )
-
-    rs.add(fs3.wrap_reaction(reaction_oh2_plus, gouy_chapman_model))
-    rs.add(fs3.wrap_reaction(reaction_oh, gouy_chapman_model))
-
-    langmuir_ph = np.array([2.0, 2.5, 2.6, 3.5, 3.7, 4.5, 7.0], dtype=np.float64)
-    langmuir_k_b = np.array([0.03, 2.14, 2.28, 3.22, 3.84, 35.15, 36.52], dtype=np.float64)
-    langmuir_q_max = np.array([0.00, 0.01, 0.02, 0.05, 0.13, 0.28, 0.31], dtype=np.float64)
-
-    def langmuir_k_b_from_pH(pH: float) -> float:
-        return float(np.interp(pH, langmuir_ph, langmuir_k_b))
-
-    def langmuir_q_max_from_pH(pH: float) -> float:
-        return float(np.interp(pH, langmuir_ph, langmuir_q_max))
-
-    rs.add(
-        fs3.langmuir_binding_reaction(
-            cs.get_idx("H⁺"),
-            cs.get_idx("MNP1"),
-            cs.get_idx("MNP10"),
-            cs.get_idx("MNP-hIgG"),
-            cs.get_idx("hIgG"),
-            cs["hIgG"].molar_mass,
-            langmuir_k_b_from_pH,
-            langmuir_q_max_from_pH,
-            tau_reaction,
-        )
-    )
-
-    # =============================================================
-    # ========================== SOLUTIONS ========================
-    # =============================================================
-    buffer_eps = 0.0
-    t_reaction_duration = 100.0
-
-    c_mnp_feed = 16.5
-    v_mnps_feed = 0.000588
-    c_higg_feed = 0.45
-    v_higg_feed = 0.0046
-    c_hcl_feed = 0.01835e3
-    c_tris_feed = 0.02e3
-    c_nacl_feed = 0.15e3
-    v_buffer_feed = 0.000135 + 0.006 - 0.6e-3 - 0.873e-3
-    v_feed = v_mnps_feed + v_higg_feed + v_buffer_feed
-
-    c_mnp_feed *= v_mnps_feed / v_feed
-    c_higg_feed *= v_higg_feed / v_feed
-    c_hcl_feed *= v_buffer_feed / v_feed
-    c_tris_feed *= v_buffer_feed / v_feed
-    c_nacl_feed *= v_buffer_feed / v_feed
-
-    feed = np.full(cs.n_components, buffer_eps, dtype=np.float64)
-    feed[cs.get_idx("H₂O")] = c_w
-    feed[cs.get_idx("H⁺")] = c_hcl_feed
-    feed[cs.get_idx("Na⁺")] = c_nacl_feed
-    feed[cs.get_idx("Cl⁻")] = c_hcl_feed + c_nacl_feed
-    feed[cs.get_idx("Tris")] = c_tris_feed
-    feed[cs.get_idx("hIgG")] = c_higg_feed
-
-    mnp_distribution = np.array([0.04852, 0.1853, 0.25496, 0.14803, 0.03495, 0.03743, 0.09137, 0.10777, 0.068, 0.02367], dtype=np.float64)
-    if abs(float(mnp_distribution.sum()) - 1.0) > 1e-3:
-        raise RuntimeError("MNP distribution does not sum to 1.")
-    for i in range(10):
-        feed[cs.get_idx(f"MNP{i + 1}")] = c_mnp_feed * mnp_distribution[i]
-    feed[cs.get_idx("MNP-OH")] = mnp_ns * mnp_specific_surface * c_mnp_feed
-
-    feed, feed_error = fs3.one_cell_reaction(rs, feed, t_reaction_duration * 10.0, solver_type, timeout_seconds)
-    pH_feed = -math.log10(feed[cs.get_idx("H⁺")] * 1e-3)
-    q_feed = feed[cs.get_idx("MNP-hIgG")] / feed[cs.get_idx("MNP1") : cs.get_idx("MNP10") + 1].sum()
-    q_max = langmuir_q_max_from_pH(pH_feed)
-    print(f"pH feed: {pH_feed} (should be ~7.3)")
-    print(f"q feed: {q_feed} q_max at this pH: {q_max}")
-    print(f"Feed reaction error: {feed_error}")
-
-    buffer1 = np.full(cs.n_components, buffer_eps, dtype=np.float64)
-    buffer1[cs.get_idx("H₂O")] = c_w
-    buffer1[cs.get_idx("H⁺")] = 0.019156e3
-    buffer1[cs.get_idx("Na⁺")] = 0.15e3
-    buffer1[cs.get_idx("Cl⁻")] = 0.019156e3 + 0.15e3
-    buffer1[cs.get_idx("Tris")] = 0.02e3
-    buffer1, buffer1_error = fs3.one_cell_reaction(rs, buffer1, t_reaction_duration, solver_type, timeout_seconds)
-    print(f"pH B1: {-math.log10(buffer1[cs.get_idx('H⁺')] * 1e-3)} (should be ~7)")
-    print(f"B1 reaction error: {buffer1_error}")
-
-    buffer2 = np.full(cs.n_components, buffer_eps, dtype=np.float64)
-    buffer2[cs.get_idx("H₂O")] = c_w
-    buffer2[cs.get_idx("H⁺")] = 0.072107e3
-    buffer2[cs.get_idx("Na⁺")] = 0.2e3
-    buffer2[cs.get_idx("Cl⁻")] = 0.072107e3
-    buffer2[cs.get_idx("Ac⁻")] = 0.2e3
-    buffer2, buffer2_error = fs3.one_cell_reaction(rs, buffer2, t_reaction_duration, solver_type, timeout_seconds)
-    print(f"pH B2: {-math.log10(buffer2[cs.get_idx('H⁺')] * 1e-3)} (should be ~4.75)")
-    print(f"B2 reaction error: {buffer2_error}")
-
-    buffer3 = np.full(cs.n_components, buffer_eps, dtype=np.float64)
-    buffer3[cs.get_idx("H₂O")] = c_w
-    buffer3[cs.get_idx("H⁺")] = 0.20221e3
-    buffer3[cs.get_idx("Na⁺")] = 0.2e3
-    buffer3[cs.get_idx("Cl⁻")] = 0.20221e3
-    buffer3[cs.get_idx("Ac⁻")] = 0.2e3
-    buffer3, buffer3_error = fs3.one_cell_reaction(rs, buffer3, t_reaction_duration, solver_type, timeout_seconds)
-    print(f"pH B3: {-math.log10(buffer3[cs.get_idx('H⁺')] * 1e-3)} (should be ~2.5)")
-    print(f"B3 reaction error: {buffer3_error}")
-
-    buffer5_water = np.full(cs.n_components, buffer_eps, dtype=np.float64)
-    buffer5_water[cs.get_idx("H₂O")] = c_w
-    buffer5_water, buffer5_water_error = fs3.one_cell_reaction(rs, buffer5_water, t_reaction_duration, solver_type, timeout_seconds)
-    print(f"pH B5: {-math.log10(buffer5_water[cs.get_idx('H⁺')] * 1e-3)} (should be ~7.0 / 6.5)")
-    print(f"B5 reaction error: {buffer5_water_error}")
+    recipe = list(recipe_steps) if recipe_steps is not None else default_recipe(solutions)
 
     # =============================================================
     # ========================== RECIPE ===========================
     # =============================================================
-    frac_feed_1 = fs3.Volume(rs)
-    frac_feed_2 = fs3.Volume(rs)
-    frac_wash_1 = fs3.Volume(rs)
-    frac_wash_2 = fs3.Volume(rs)
-    frac_wash_3 = fs3.Volume(rs)
-    frac_elution_1 = fs3.Volume(rs)
-    frac_elution_2 = fs3.Volume(rs)
-    frac_elution_3 = fs3.Volume(rs)
-    frac_elution_4 = fs3.Volume(rs)
-    frac_elution_5 = fs3.Volume(rs)
-
-    recipe = [
-        RecipeSection("Load 1", 1199, 20, 0, FlowSheetConfig.LINE, feed, frac_feed_1),
-        RecipeSection("Load 1 pause", 34, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
-        RecipeSection("Load 2", 96, 20, 0, FlowSheetConfig.LINE, feed, frac_feed_1),
-        RecipeSection("Load 2 pause", 33, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
-        RecipeSection("Wash 1 fill", 50, 40, 0, FlowSheetConfig.LINE, buffer1, frac_feed_2),
-        RecipeSection("Wash 1 resuspend", 65, 0, 60, FlowSheetConfig.NO_FLOW, buffer5_water, None),
-        RecipeSection("Wash 1 resuspend loop", 51, 40, 50, FlowSheetConfig.LOOP, buffer5_water, None),
-        RecipeSection("Wash 1 recapture", 69, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
-        RecipeSection("Wash 1 recapture loop", 196, 30, 0, FlowSheetConfig.LOOP, buffer5_water, None),
-        RecipeSection("Wash 1 pause", 6, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
-        RecipeSection("Wash 2 fill", 50, 40, 0, FlowSheetConfig.LINE, buffer1, frac_wash_1),
-        RecipeSection("Wash 2 resuspend", 65, 0, 60, FlowSheetConfig.NO_FLOW, buffer5_water, None),
-        RecipeSection("Wash 2 resuspend loop", 51, 40, 50, FlowSheetConfig.LOOP, buffer5_water, None),
-        RecipeSection("Wash 2 recapture", 69, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
-        RecipeSection("Wash 2 recapture loop", 196, 30, 0, FlowSheetConfig.LOOP, buffer5_water, None),
-        RecipeSection("Wash 2 pause", 14, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
-        RecipeSection("Wash 3 fill", 50, 40, 0, FlowSheetConfig.LINE, buffer2, frac_wash_2),
-        RecipeSection("Wash 3 resuspend", 65, 0, 60, FlowSheetConfig.NO_FLOW, buffer5_water, None),
-        RecipeSection("Wash 3 resuspend loop", 51, 40, 50, FlowSheetConfig.LOOP, buffer5_water, None),
-        RecipeSection("Wash 3 recapture", 69, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
-        RecipeSection("Wash 3 recapture loop", 196, 30, 0, FlowSheetConfig.LOOP, buffer5_water, None),
-        RecipeSection("Wash 3 pause", 13, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
-        RecipeSection("Elution 1 fill", 52, 40, 0, FlowSheetConfig.LINE, buffer3, frac_wash_3),
-        RecipeSection("Elution 1 resuspend", 90, 0, 60, FlowSheetConfig.NO_FLOW, buffer5_water, None),
-        RecipeSection("Elution 1 resuspend loop", 300, 30, 40, FlowSheetConfig.LOOP, buffer5_water, None),
-        RecipeSection("Elution 1 recapture", 60, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
-        RecipeSection("Elution 1 recapture loop", 200, 30, 0, FlowSheetConfig.LOOP, buffer5_water, None),
-        RecipeSection("Elution 1 pause", 7, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
-        RecipeSection("Elution 2 fill", 52, 40, 0, FlowSheetConfig.LINE, buffer3, frac_elution_1),
-        RecipeSection("Elution 2 resuspend", 90, 0, 60, FlowSheetConfig.NO_FLOW, buffer5_water, None),
-        RecipeSection("Elution 2 resuspend loop", 300, 30, 40, FlowSheetConfig.LOOP, buffer5_water, None),
-        RecipeSection("Elution 2 recapture", 60, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
-        RecipeSection("Elution 2 recapture loop", 200, 30, 0, FlowSheetConfig.LOOP, buffer5_water, None),
-        RecipeSection("Elution 2 pause", 9, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
-        RecipeSection("Elution 3 fill", 52, 40, 0, FlowSheetConfig.LINE, buffer3, frac_elution_2),
-        RecipeSection("Elution 3 resuspend", 90, 0, 60, FlowSheetConfig.NO_FLOW, buffer5_water, None),
-        RecipeSection("Elution 3 resuspend loop", 300, 30, 40, FlowSheetConfig.LOOP, buffer5_water, None),
-        RecipeSection("Elution 3 recapture", 60, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
-        RecipeSection("Elution 3 recapture loop", 200, 30, 0, FlowSheetConfig.LOOP, buffer5_water, None),
-        RecipeSection("Elution 3 pause", 10, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
-        RecipeSection("Elution 4 fill", 52, 40, 0, FlowSheetConfig.LINE, buffer3, frac_elution_3),
-        RecipeSection("Elution 4 resuspend", 90, 0, 60, FlowSheetConfig.NO_FLOW, buffer5_water, None),
-        RecipeSection("Elution 4 resuspend loop", 300, 30, 40, FlowSheetConfig.LOOP, buffer5_water, None),
-        RecipeSection("Elution 4 recapture", 60, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
-        RecipeSection("Elution 4 recapture loop", 200, 30, 0, FlowSheetConfig.LOOP, buffer5_water, None),
-        RecipeSection("Elution 4 pause", 154, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
-        RecipeSection("Elution 5 fill", 52, 40, 0, FlowSheetConfig.LINE, buffer3, frac_elution_4),
-        RecipeSection("Elution 5 resuspend", 90, 0, 60, FlowSheetConfig.NO_FLOW, buffer5_water, None),
-        RecipeSection("Elution 5 resuspend loop", 300, 30, 40, FlowSheetConfig.LOOP, buffer5_water, None),
-        RecipeSection("Elution 5 recapture", 60, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
-        RecipeSection("Elution 5 recapture loop", 200, 30, 0, FlowSheetConfig.LOOP, buffer5_water, None),
-        RecipeSection("Elution 5 pause", 170, 0, 0, FlowSheetConfig.NO_FLOW, buffer5_water, None),
-        RecipeSection("Regeneration", 52, 25, 0, FlowSheetConfig.LINE, buffer1, frac_elution_5),
-    ]
+    fractions = {name: fs3.Volume(rs) for name in FRACTIONS}
 
     pump_percentages = np.array([0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90], dtype=np.float64)
     upper_curve = np.array([0, 91, 220, 330, 465, 621, 783, 916, 1075, 1236, 1420, 1495, 1750, 1830, 1858, 1865, 1860, 1865, 1895], dtype=np.float64)
@@ -303,13 +47,13 @@ def run_HGMS_hIgG_separation(
 
     cumulative_ends = []
     total_duration = 0.0
-    for section in recipe:
-        total_duration += section.t_duration
+    for step in recipe:
+        total_duration += step.t_duration
         cumulative_ends.append(total_duration)
 
     def section_idx(t: float):
-        idx = bisect_right(cumulative_ends, t)
-        return None if idx >= len(recipe) else idx
+        i = bisect_right(cumulative_ends, t)
+        return None if i >= len(recipe) else i
 
     def interp_pump(p: float) -> float:
         return float(np.interp(p, pump_percentages, flow_curve))
@@ -318,26 +62,21 @@ def run_HGMS_hIgG_separation(
         return float(np.interp(p, mixing_percentages, d_ax_curve))
 
     def flowRateFunction(t: float) -> float:
-        idx = section_idx(t)
-        if idx is None:
-            return interp_pump(0.0)
-        return interp_pump(recipe[idx].pump_percentage)
+        i = section_idx(t)
+        return interp_pump(0.0 if i is None else recipe[i].pump_percentage)
 
     def pc_D_ax_function(t: float) -> float:
-        idx = section_idx(t)
-        if idx is None:
-            return interp_dax(0.0)
-        return interp_dax(recipe[idx].mixing_percentage)
+        i = section_idx(t)
+        return interp_dax(0.0 if i is None else recipe[i].mixing_percentage)
 
     def capture_function(t: float) -> float:
-        idx = section_idx(t)
-        if idx is None:
+        i = section_idx(t)
+        if i is None:
             return 1.0
-        section = recipe[idx]
-        if section.mixing_percentage == 0.0:
+        step = recipe[i]
+        if step.mixing_percentage == 0.0:
             return 1.0
-        t_start = cumulative_ends[idx] - section.t_duration
-        t_in_section = t - t_start
+        t_in_section = t - (cumulative_ends[i] - step.t_duration)
         uncapture_rate = math.log(2.0) / 5.0
         if t_in_section < 10.0:
             ramp = t_in_section / 10.0
@@ -345,35 +84,26 @@ def run_HGMS_hIgG_separation(
         return -uncapture_rate
 
     def inlet_function(t: float):
-        idx = section_idx(t)
-        return recipe[-1].inlet_solution if idx is None else recipe[idx].inlet_solution
+        i = section_idx(t)
+        return (recipe[-1] if i is None else recipe[i]).inlet.concentrations
 
-    def flowRate_function(t: float) -> float:
-        idx = section_idx(t)
-        if idx is None:
+    def flowRate_for_config(t: float, *configs) -> float:
+        i = section_idx(t)
+        if i is None:
             return interp_pump(0.0)
-        cfg = recipe[idx].flow_sheet_configuration
-        if cfg in (FlowSheetConfig.LINE, FlowSheetConfig.LOOP):
-            return interp_pump(recipe[idx].pump_percentage)
-        return 0.0
+        return interp_pump(recipe[i].pump_percentage) if recipe[i].flow_sheet_configuration in configs else 0.0
 
     def flowRate_function_line(t: float) -> float:
-        idx = section_idx(t)
-        if idx is None:
-            return interp_pump(0.0)
-        return interp_pump(recipe[idx].pump_percentage) if recipe[idx].flow_sheet_configuration == FlowSheetConfig.LINE else 0.0
+        return flowRate_for_config(t, FlowSheetConfig.LINE)
 
     def flowRate_function_loop(t: float) -> float:
-        idx = section_idx(t)
-        if idx is None:
-            return interp_pump(0.0)
-        return interp_pump(recipe[idx].pump_percentage) if recipe[idx].flow_sheet_configuration == FlowSheetConfig.LOOP else 0.0
+        return flowRate_for_config(t, FlowSheetConfig.LOOP)
 
-    def flowRate_function_frac(t: float, fraction):
-        idx = section_idx(t)
-        if idx is None:
+    def flowRate_function_frac(t: float, fraction_name: str) -> float:
+        i = section_idx(t)
+        if i is None:
             return interp_pump(0.0)
-        return interp_pump(recipe[idx].pump_percentage) if recipe[idx].fraction is fraction else 0.0
+        return interp_pump(recipe[i].pump_percentage) if recipe[i].fraction == fraction_name else 0.0
 
     # =============================================================
     # ========================== UNIT OPERATIONS ==================
@@ -386,7 +116,7 @@ def run_HGMS_hIgG_separation(
     scale_n_cells = lambda base: max(1, int(round(base * discretization_factor)))
 
     pipe_inlet = fs3.Pipe(rs, scale_n_cells(10), a_cross_pipes, l_inlet_pipe, flowRateFunction, 0.0)
-    pipe_inlet.set_const_initial_concentration(buffer5_water)
+    pipe_inlet.set_const_initial_concentration(water)
 
     def a_eff_function(um_u0_ratio: float) -> float:
         a1 = 2.035
@@ -422,57 +152,29 @@ def run_HGMS_hIgG_separation(
         flowRateFunction,
         pc_D_ax_function,
     )
-    pc.set_const_initial_concentration(buffer5_water)
+    pc.set_const_initial_concentration(water)
 
     v_dead = 4.113e-5 + 8.381e-5
     dead_volume = fs3.Volume(rs, v_dead)
-    dead_volume.set_const_initial_concentration(buffer5_water)
+    dead_volume.set_const_initial_concentration(water)
 
     pipe_outlet = fs3.Pipe(rs, scale_n_cells(10), a_cross_pipes, 1.02, flowRateFunction, 0.0)
-    pipe_outlet.set_const_initial_concentration(buffer5_water)
+    pipe_outlet.set_const_initial_concentration(water)
 
     pipe_loop = fs3.Pipe(rs, scale_n_cells(10), a_cross_pipes, 1.73, flowRate_function_loop, 0.0)
-    pipe_loop.set_const_initial_concentration(buffer5_water)
+    pipe_loop.set_const_initial_concentration(water)
 
     print(f"Total duration of the process: {total_duration} seconds.")
 
-    process = fs3.Process(
-        cs,
-        [
-            inlet,
-            pipe_inlet,
-            pc,
-            dead_volume,
-            pipe_outlet,
-            pipe_loop,
-            frac_feed_1,
-            frac_feed_2,
-            frac_wash_1,
-            frac_wash_2,
-            frac_wash_3,
-            frac_elution_1,
-            frac_elution_2,
-            frac_elution_3,
-            frac_elution_4,
-            frac_elution_5,
-        ],
-    )
+    process = fs3.Process(cs, [inlet, pipe_inlet, pc, dead_volume, pipe_outlet, pipe_loop, *fractions.values()])
 
     process.add_connection(inlet.exit(), pipe_inlet.entry(), flowRate_function_line)
     process.add_connection(pipe_inlet.exit(), pc.entry(), flowRateFunction)
     process.add_connection(pc.exit(), dead_volume.entry(), flowRateFunction)
     process.add_connection(dead_volume.exit(), pipe_outlet.entry(), flowRateFunction)
 
-    process.add_connection(pipe_outlet.exit(), frac_feed_1.entry(), lambda t: flowRate_function_frac(t, frac_feed_1))
-    process.add_connection(pipe_outlet.exit(), frac_feed_2.entry(), lambda t: flowRate_function_frac(t, frac_feed_2))
-    process.add_connection(pipe_outlet.exit(), frac_wash_1.entry(), lambda t: flowRate_function_frac(t, frac_wash_1))
-    process.add_connection(pipe_outlet.exit(), frac_wash_2.entry(), lambda t: flowRate_function_frac(t, frac_wash_2))
-    process.add_connection(pipe_outlet.exit(), frac_wash_3.entry(), lambda t: flowRate_function_frac(t, frac_wash_3))
-    process.add_connection(pipe_outlet.exit(), frac_elution_1.entry(), lambda t: flowRate_function_frac(t, frac_elution_1))
-    process.add_connection(pipe_outlet.exit(), frac_elution_2.entry(), lambda t: flowRate_function_frac(t, frac_elution_2))
-    process.add_connection(pipe_outlet.exit(), frac_elution_3.entry(), lambda t: flowRate_function_frac(t, frac_elution_3))
-    process.add_connection(pipe_outlet.exit(), frac_elution_4.entry(), lambda t: flowRate_function_frac(t, frac_elution_4))
-    process.add_connection(pipe_outlet.exit(), frac_elution_5.entry(), lambda t: flowRate_function_frac(t, frac_elution_5))
+    for name, frac in fractions.items():
+        process.add_connection(pipe_outlet.exit(), frac.entry(), lambda t, n=name: flowRate_function_frac(t, n))
 
     process.add_connection(pipe_outlet.exit(), pipe_loop.entry(), flowRate_function_loop)
     process.add_connection(pipe_loop.exit(), pipe_inlet.entry(), flowRate_function_loop)
@@ -486,22 +188,18 @@ def run_HGMS_hIgG_separation(
     n_obs_time_steps = int(total_duration / dt_obs) + 1
     print(f"Number of observation time steps: {n_obs_time_steps}")
 
-    compute_errors = True
-    obs_pipe_inlet = fs3.TimeSeriesObserver(0.0, total_duration, n_obs_time_steps, pipe_inlet.all(), solver, save_obs, compute_errors)
-    obs_pc_liquid = fs3.TimeSeriesObserver(0.0, total_duration, n_obs_time_steps, pc.liquid(), solver, save_obs, compute_errors)
-    obs_pc_slurry = fs3.TimeSeriesObserver(0.0, total_duration, n_obs_time_steps, pc.slurry(), solver, save_obs, compute_errors)
-    obs_pipe_outlet = fs3.TimeSeriesObserver(0.0, total_duration, n_obs_time_steps, pipe_outlet.all(), solver, save_obs, compute_errors)
-    obs_pipe_loop = fs3.TimeSeriesObserver(0.0, total_duration, n_obs_time_steps, pipe_loop.all(), solver, save_obs, compute_errors)
-    obs_frac_feed_1 = fs3.TimeSeriesObserver(0.0, total_duration, n_obs_time_steps, frac_feed_1.all(), solver, save_obs, compute_errors)
-    obs_frac_feed_2 = fs3.TimeSeriesObserver(0.0, total_duration, n_obs_time_steps, frac_feed_2.all(), solver, save_obs, compute_errors)
-    obs_frac_wash_1 = fs3.TimeSeriesObserver(0.0, total_duration, n_obs_time_steps, frac_wash_1.all(), solver, save_obs, compute_errors)
-    obs_frac_wash_2 = fs3.TimeSeriesObserver(0.0, total_duration, n_obs_time_steps, frac_wash_2.all(), solver, save_obs, compute_errors)
-    obs_frac_wash_3 = fs3.TimeSeriesObserver(0.0, total_duration, n_obs_time_steps, frac_wash_3.all(), solver, save_obs, compute_errors)
-    obs_frac_elution_1 = fs3.TimeSeriesObserver(0.0, total_duration, n_obs_time_steps, frac_elution_1.all(), solver, save_obs, compute_errors)
-    obs_frac_elution_2 = fs3.TimeSeriesObserver(0.0, total_duration, n_obs_time_steps, frac_elution_2.all(), solver, save_obs, compute_errors)
-    obs_frac_elution_3 = fs3.TimeSeriesObserver(0.0, total_duration, n_obs_time_steps, frac_elution_3.all(), solver, save_obs, compute_errors)
-    obs_frac_elution_4 = fs3.TimeSeriesObserver(0.0, total_duration, n_obs_time_steps, frac_elution_4.all(), solver, save_obs, compute_errors)
-    obs_frac_elution_5 = fs3.TimeSeriesObserver(0.0, total_duration, n_obs_time_steps, frac_elution_5.all(), solver, save_obs, compute_errors)
+    observed = {
+        "pipe_inlet": pipe_inlet.all(),
+        "pc_liquid": pc.liquid(),
+        "pc_slurry": pc.slurry(),
+        "pipe_outlet": pipe_outlet.all(),
+        "pipe_loop": pipe_loop.all(),
+        **{name: frac.all() for name, frac in fractions.items()},
+    }
+    observers = {
+        name: fs3.TimeSeriesObserver(0.0, total_duration, n_obs_time_steps, target, solver, save_obs, True)
+        for name, target in observed.items()
+    }
     obs_pc_outlet = fs3.TimeSeriesObserver(0.0, total_duration, n_obs_time_steps, pc.exit(), solver, save_obs)
 
     # =============================================================
@@ -513,10 +211,11 @@ def run_HGMS_hIgG_separation(
     # =============================================================
     # ========================== RESULTS ==========================
     # =============================================================
-    print("Max pH error: <not exposed in Python bindings>")
     internal_time_stamps = solver.get_internal_time_stamps()
 
-    run_dir = Path.cwd() / datetime.now().strftime("run_%Y-%m-%d_%H-%M-%S")
+    output_base_dir = Path.cwd() if output_base_dir is None else Path(output_base_dir)
+    run_name = run_tag or datetime.now().strftime("run_%Y-%m-%d_%H-%M-%S")
+    run_dir = output_base_dir / run_name
     obs_dir = run_dir / "obs"
     if save_obs:
         (run_dir / "logs").mkdir(parents=True, exist_ok=True)
@@ -525,37 +224,27 @@ def run_HGMS_hIgG_separation(
 
         np.save(obs_dir / "internal_timestamps.npy", np.asarray(internal_time_stamps, dtype=np.float64))
 
-        obs_unit_ops = obs_dir / "unit_operations.npz"
-        obs_pipe_inlet.save_to_npz(str(obs_unit_ops), "pipe_inlet", "a")
-        obs_pc_liquid.save_to_npz(str(obs_unit_ops), "pc_liquid", "a")
-        obs_pc_slurry.save_to_npz(str(obs_unit_ops), "pc_slurry", "a")
-        obs_pipe_outlet.save_to_npz(str(obs_unit_ops), "pipe_outlet", "a")
-        obs_pipe_loop.save_to_npz(str(obs_unit_ops), "pipe_loop", "a")
-        obs_frac_feed_1.save_to_npz(str(obs_unit_ops), "frac_feed_1", "a")
-        obs_frac_feed_2.save_to_npz(str(obs_unit_ops), "frac_feed_2", "a")
-        obs_frac_wash_1.save_to_npz(str(obs_unit_ops), "frac_wash_1", "a")
-        obs_frac_wash_2.save_to_npz(str(obs_unit_ops), "frac_wash_2", "a")
-        obs_frac_wash_3.save_to_npz(str(obs_unit_ops), "frac_wash_3", "a")
-        obs_frac_elution_1.save_to_npz(str(obs_unit_ops), "frac_elution_1", "a")
-        obs_frac_elution_2.save_to_npz(str(obs_unit_ops), "frac_elution_2", "a")
-        obs_frac_elution_3.save_to_npz(str(obs_unit_ops), "frac_elution_3", "a")
-        obs_frac_elution_4.save_to_npz(str(obs_unit_ops), "frac_elution_4", "a")
-        obs_frac_elution_5.save_to_npz(str(obs_unit_ops), "frac_elution_5", "a")
+        obs_unit_ops = str(obs_dir / "unit_operations.npz")
+        for name, obs in observers.items():
+            obs.save_to_npz(obs_unit_ops, name, "a")
 
         obs_pc_outlet.save_to_npy(str(obs_dir / "pc_outlet.npy"))
 
         cell_index = pipe_outlet.n_cells // 2
-        pH_activity = fs3.convert_to_pH(obs_pipe_outlet, cell_index, pipe_outlet.cell_volume, cs, activity_model)
+        pH_activity = fs3.convert_to_pH(observers["pipe_outlet"], cell_index, pipe_outlet.cell_volume, cs, activity_model)
         np.save(obs_dir / "pipe_outlet_middle_cell_pH_activity.npy", np.asarray(pH_activity, dtype=np.float64))
 
-        pH_concentration = fs3.convert_to_pH(obs_pipe_outlet, cell_index, pipe_outlet.cell_volume, cs, fs3.NoActivityModel(cs))
+        pH_concentration = fs3.convert_to_pH(observers["pipe_outlet"], cell_index, pipe_outlet.cell_volume, cs, fs3.NoActivityModel(cs))
         np.save(obs_dir / "pipe_outlet_middle_cell_pH_concentration.npy", np.asarray(pH_concentration, dtype=np.float64))
 
     print(f"Solved with {len(internal_time_stamps)} internal time stamps in {t_solve_duration} seconds.")
     if t_solve_duration > timeout_seconds:
         print(f"WARNING: Solver timed out after {timeout_seconds} seconds at t={solver.get_t()} / {total_duration}")
 
-    return (float("nan"), t_solve_duration, len(internal_time_stamps))
+    result: Tuple[float, float, int] = (float("nan"), t_solve_duration, len(internal_time_stamps))
+    if return_paths:
+        return result, run_dir, obs_dir
+    return result
 
 
 if __name__ == "__main__":
