@@ -2,7 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import to_hex
 import os
-from shared_data import idx, path_to_obs, path_to_save, show_plots
+from model import build_component_system
+from shared_data import path_to_obs, path_to_save
+
+cs = build_component_system()
 
 # data = np.load(path_to_obs + "/some_snapshot.npy")
 data = np.load(path_to_obs + "/pc_outlet.npy")
@@ -23,11 +26,11 @@ if num_components == 1:
     axes = [axes]
 
 for ax, component in zip(axes, components):
-    ax.plot(data[:, idx[component]], label=component)
+    ax.plot(data[:, cs.get_idx(component)], label=component)
     ax.set_ylabel(component)
     ax.legend(loc='upper right')
-    print(f"Plotting component: {component} with index {idx[component]}")
-    print(f"Data for {component}\n: {data[:, idx[component]]}")
+    print(f"Plotting component: {component} with index {cs.get_idx(component)}")
+    print(f"Data for {component}\n: {data[:, cs.get_idx(component)]}")
 
 axes[-1].set_xlabel('Cell index or Time index')
 fig.suptitle('Mass per cell vectors (each component in own subplot)')
@@ -39,7 +42,4 @@ outfile = os.path.join(path_to_save, "plot_time-or-cell_comp_2D_array.pdf")
 plt.savefig(outfile, bbox_inches="tight")
 
 # Only show plots if configured
-if show_plots:
-    plt.show()
-else:
-    plt.close('all')
+plt.close('all')

@@ -103,24 +103,20 @@ def default_recipe(solutions: Dict[str, Solution]) -> List[RecipeStep]:
 def total_duration(recipe: List[RecipeStep]) -> float:
     return float(sum(step.t_duration for step in recipe))
 
-# used by scripts that can only take one observation e.g. animate_unit_operations.py
-path_to_obs = "data/run_fitted_no_MNP_hydroxyl_reactions_ERK_for_time_steps/obs"
 
-# used by scripts that can take multiple observations e.g. plot_fractions.py
+def observation_time_stamps(recipe: List[RecipeStep], dt_obs: float = 2.0) -> np.ndarray:
+    return np.arange(0.0, total_duration(recipe) + 1e-5, dt_obs)
 
-path_to_obs_dict = {#"FS³, fitted Langmuir, main simulation" : "data/run_fitted_main_simulation/obs",
-                    #"FS³, fitted Langmuir, no Gouy-Chapman Model" : "data/run_fitted_no_gouy_chapman/obs",
-                    "FS³, fitted Langmuir, no MNP hydroxyl reactions" : "data/run_fitted_no_MNP_hydroxyl_reactions/obs",
-                    "FS³, fitted Langmuir, no MNP hydroxyl reactions, tau=1, discretization factor = 0.5" : "data/run_fitted_no_MNP_hydroxyl_reactions_tau_1_discretization_factor_0,5_ERK/obs",
-                    "FS³, fitted Langmuir, no MNP hydroxyl reactions, tau=5, discretization factor = 0.2" : "data/run_fitted_no_MNP_hydroxyl_reactions_tau_5_discretization_factor_0,2_ERK/obs"
-                    #"FS³, fitted Langmuir, liquid-slurry dispersion 1e-8" : "data/run_fitted_liquid_slurry_dispersion_1e-8/obs",
-                    #"FS³, isotherm Langmuir, main simulation" : "data/run_isotherm_main_simulation/obs",
-                    #"FS³, isotherm Langmuir, no MNP hydroxyl reactions" : "data/run_isotherm_no_MNP_hydroxyl_reactions/obs",
-                    #"FS³, isotherm Langmuir, liquid-slurry dispersion 1e-8" : "data/run_isotherm_liquid_slurry_dispersion_1e-8/obs"
-                    }
 
-path_to_save = "data/run_fitted_no_MNP_hydroxyl_reactions_ERK_for_time_steps/plots"
+# Default run directory used by the plot/animation scripts when run standalone:
+# <DEFAULT_RUN>/obs holds the simulation output, <DEFAULT_RUN>/plots the figures.
+DEFAULT_RUN = "data/run_fitted_no_MNP_hydroxyl_reactions_ERK_for_time_steps"
+path_to_obs = f"{DEFAULT_RUN}/obs"
+path_to_save = f"{DEFAULT_RUN}/plots"
 
-show_plots = False
-
-time_stamps = np.arange(0, 6600 + 1e-5, 2)
+# Runs to overlay in plot_fractions.py, as {label: obs directory}.
+path_to_obs_dict = {
+    "FS³, fitted Langmuir, no MNP hydroxyl reactions": "data/run_fitted_no_MNP_hydroxyl_reactions/obs",
+    "FS³, fitted Langmuir, no MNP hydroxyl reactions, tau=1, discretization factor = 0.5": "data/run_fitted_no_MNP_hydroxyl_reactions_tau_1_discretization_factor_0,5_ERK/obs",
+    "FS³, fitted Langmuir, no MNP hydroxyl reactions, tau=5, discretization factor = 0.2": "data/run_fitted_no_MNP_hydroxyl_reactions_tau_5_discretization_factor_0,2_ERK/obs",
+}

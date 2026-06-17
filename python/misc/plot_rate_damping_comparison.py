@@ -18,7 +18,7 @@ from __future__ import annotations
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-from shared_data import path_to_save, show_plots
+from shared_data import path_to_save
 # Global plotting style tweaks for readability
 plt.rcParams.update({
   "font.size": 12,
@@ -67,7 +67,4 @@ fig.tight_layout()
 os.makedirs(path_to_save, exist_ok=True)
 fig.savefig(os.path.join(path_to_save, "rate_damping_comparison.pdf"), bbox_inches="tight")
 if __name__ == "__main__":
-  if show_plots:
-    plt.show()
-  else:
-    plt.close('all')
+  plt.close('all')

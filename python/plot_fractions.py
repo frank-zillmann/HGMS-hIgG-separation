@@ -18,7 +18,6 @@ import numpy as np
 from model import build_component_system
 from shared_data import path_to_obs_dict as shared_path_to_obs_dict
 from shared_data import path_to_save as shared_path_to_save
-from shared_data import show_plots as shared_show_plots
 
 # ---- Static values copied from the figure (all in grams) --------------------
 # Fraction ordering keys used throughout (Feed and Wash intentionally NaN)
@@ -68,7 +67,6 @@ fraction_colors = {
 def plot_fractions(
     path_to_obs_dict: Optional[Dict[str, str]] = None,
     path_to_save: Optional[str] = None,
-    show_plots: Optional[bool] = None,
     component: str = "hIgG",
     plotted_fraction_names: Optional[list] = None,
     save_plots: bool = True,
@@ -78,8 +76,6 @@ def plot_fractions(
         path_to_obs_dict = shared_path_to_obs_dict
     if path_to_save is None:
         path_to_save = shared_path_to_save
-    if show_plots is None:
-        show_plots = shared_show_plots
 
     factor_raw_to_g = 1000
     component_idx = build_component_system().get_idx(component)
@@ -222,9 +218,7 @@ def plot_fractions(
         fig.savefig(outfile, bbox_inches="tight")
         print(f"Saved to {outfile}!")
 
-    if show_plots:
-        plt.show()
-    elif close_fig:
+    if close_fig:
         plt.close(fig)
 
     return fig, outfile

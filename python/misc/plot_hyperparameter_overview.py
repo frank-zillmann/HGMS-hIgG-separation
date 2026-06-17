@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 import os
-from shared_data import path_to_save, show_plots
+from shared_data import path_to_save
 
 def load_and_plot_results(npz_file):
     """Load and plot the hyperparameter search results."""
@@ -118,10 +118,7 @@ def load_and_plot_results(npz_file):
     print(f"Saved plots to: {output_file}")
 
     # Only show plots if configured
-    if show_plots:
-        plt.show()
-    else:
-        plt.close('all')
+    plt.close('all')
     
     # Print summary statistics
     print("\n" + "="*60)

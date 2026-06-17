@@ -7,13 +7,11 @@ import pandas as pd
 
 from shared_data import path_to_obs as shared_path_to_obs
 from shared_data import path_to_save as shared_path_to_save
-from shared_data import show_plots as shared_show_plots
 
 
 def plot_pH(
     path_to_obs: Optional[str] = None,
     path_to_save: Optional[str] = None,
-    show_plots: Optional[bool] = None,
     experimental_path: str = "data/experimental_data.ods",
     t_plot_from: float = 0.0,
     t_plot_until: float = 6600.0,
@@ -26,8 +24,6 @@ def plot_pH(
         path_to_obs = shared_path_to_obs
     if path_to_save is None:
         path_to_save = shared_path_to_save
-    if show_plots is None:
-        show_plots = shared_show_plots
 
     data_experimental = None
     if include_experimental and os.path.exists(experimental_path):
@@ -115,9 +111,7 @@ def plot_pH(
         outfile = os.path.join(path_to_save, "plot_pH.pdf")
         plt.savefig(outfile, bbox_inches="tight")
 
-    if show_plots:
-        plt.show()
-    elif close_fig:
+    if close_fig:
         plt.close(fig)
 
     return fig, outfile

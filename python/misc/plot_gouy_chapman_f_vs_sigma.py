@@ -17,7 +17,7 @@ from __future__ import annotations
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-from shared_data import path_to_save, show_plots
+from shared_data import path_to_save
 
 try:
     from scipy.constants import epsilon_0, k as k_B, Avogadro, e
@@ -123,7 +123,4 @@ if __name__ == "__main__":
     plt.savefig(outfile, bbox_inches="tight")
 
     # Only show plots if configured
-    if show_plots:
-        plt.show()
-    else:
-        plt.close('all')
+    plt.close('all')

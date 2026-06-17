@@ -10,16 +10,13 @@ import matplotlib.animation as animation
 import os
 import matplotlib.gridspec as gridspec
 from model import build_component_system
-from shared_data import path_to_obs, path_to_save, show_plots
+from shared_data import path_to_obs, path_to_save
 import matplotlib.cm as cm
 
 cs = build_component_system()
 
 
 # --- CONFIGURATION ---
-# Driven by shared_data: show when show_plots is True; otherwise, save.
-show_animation = bool(show_plots)
-save_animation = not show_animation
 fps = 25
 
 # Build output path under configured save directory
@@ -174,27 +171,23 @@ ani = animation.FuncAnimation(
     blit=False, interval=int(1000 / fps), repeat=False
 )
 
-if show_animation:
-    plt.show()
-
-# --- SAVE OR SHOW ---
-if save_animation:
-    os.makedirs(path_to_save, exist_ok=True)
-    if 'ffmpeg' in animation.writers:
-        print("Using ffmpeg writer to save animation.")
-        Writer = animation.writers['ffmpeg']
-        writer = Writer(fps=fps, metadata=dict(artist='Me'), bitrate=1800)
-        ani.save(video_filename, writer=writer)
-        print(f"Animation saved to {video_filename}")
-    elif 'pillow' in animation.writers:
-        print("ffmpeg not found, using pillow writer to save animation as GIF.")
-        gif_filename = os.path.splitext(video_filename)[0] + '.gif'
-        Writer = animation.writers['pillow']
-        writer = Writer(fps=fps)
-        ani.save(gif_filename, writer=writer)
-        print(f"Animation saved to {gif_filename} (GIF, not MP4)")
-    else:
-        print("No supported video writer (ffmpeg or pillow) found. Cannot save animation.")
+# --- SAVE ---
+os.makedirs(path_to_save, exist_ok=True)
+if 'ffmpeg' in animation.writers:
+    print("Using ffmpeg writer to save animation.")
+    Writer = animation.writers['ffmpeg']
+    writer = Writer(fps=fps, metadata=dict(artist='Me'), bitrate=1800)
+    ani.save(video_filename, writer=writer)
+    print(f"Animation saved to {video_filename}")
+elif 'pillow' in animation.writers:
+    print("ffmpeg not found, using pillow writer to save animation as GIF.")
+    gif_filename = os.path.splitext(video_filename)[0] + '.gif'
+    Writer = animation.writers['pillow']
+    writer = Writer(fps=fps)
+    ani.save(gif_filename, writer=writer)
+    print(f"Animation saved to {gif_filename} (GIF, not MP4)")
+else:
+    print("No supported video writer (ffmpeg or pillow) found. Cannot save animation.")
 
 # --- OPTIONAL: Draw arrows/lines to visually connect subplots (not animated) ---
 # This can be done with fig.annotate or fig.lines if desired for static layout

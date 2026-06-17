@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 import os
-from shared_data import path_to_save, show_plots
+from shared_data import path_to_save
 
 def load_and_plot_results(npz_file, value_type):
     """Load and plot a single heatmap of the selected value type."""
@@ -63,10 +63,7 @@ def load_and_plot_results(npz_file, value_type):
     output_file = os.path.join(path_to_save, os.path.basename(npz_file).replace('.npz', f'_{value_type}_heatmap.pdf'))
     plt.savefig(output_file, bbox_inches='tight')
     print(f"Saved heatmap to: {output_file}")
-    if show_plots:
-        plt.show()
-    else:
-        plt.close('all')
+    plt.close('all')
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import os
-from shared_data import path_to_save, show_plots
+from shared_data import path_to_save
 
 
 # _fit data
@@ -59,7 +59,4 @@ outfile = os.path.join(path_to_save, "plot_langmuir_parameters.pdf")
 plt.savefig(outfile, bbox_inches="tight")
 
 # Only show plots if configured
-if show_plots:
-	plt.show()
-else:
-	plt.close('all')
+plt.close('all')

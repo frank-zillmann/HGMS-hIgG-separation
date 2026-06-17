@@ -4,11 +4,11 @@ from matplotlib.colors import to_hex
 import matplotlib.animation as animation
 import os
 
-from shared_data import idx, path_to_obs, path_to_save, show_plots
+from model import build_component_system
+from shared_data import path_to_obs, path_to_save
 
-# Drive from shared_data: show if show_plots; otherwise save
-show_animation = bool(show_plots)
-save_animation = not show_animation
+cs = build_component_system()
+
 fps = 20 # Frames per second
 
 # Output video filename under configured results directory
@@ -64,7 +64,7 @@ def init():
 # Precompute y-limits for each component in the selected time range
 y_lims = []
 for component in components:
-    comp_data = data[start_time:end_time+1, :, idx[component]]
+    comp_data = data[start_time:end_time+1, :, cs.get_idx(component)]
     y_min = np.min(comp_data)
     y_max = np.max(comp_data)
     y_lims.append((y_min, y_max))
@@ -73,7 +73,7 @@ def animate(frame):
     for i, component in enumerate(components):
         # x: cell index, y: concentration at this time step
         x = np.arange(data.shape[1])
-        y = data[frame, :, idx[component]]
+        y = data[frame, :, cs.get_idx(component)]
         lines[i].set_data(x, y)
         axes[i].set_xlim(0, data.shape[1]-1)
         axes[i].set_ylim(y_lims[i][0], y_lims[i][1])
@@ -87,25 +87,20 @@ ani = animation.FuncAnimation(
 )
 
 # Save animation to video if requested
-if save_animation:
-    os.makedirs(path_to_save, exist_ok=True)
-    # Use ffmpeg writer if available, else fallback to pillow (gif)
-    if 'ffmpeg' in animation.writers:
-        print("Using ffmpeg writer to save animation.")
-        Writer = animation.writers['ffmpeg']
-        writer = Writer(fps=fps, metadata=dict(artist='Me'), bitrate=1800)
-        ani.save(video_filename, writer=writer)
-        print(f"Animation saved to {video_filename}")
-    elif 'pillow' in animation.writers:
-        print("ffmpeg not found, using pillow writer to save animation as GIF.")
-        gif_filename = os.path.splitext(video_filename)[0] + '.gif'
-        Writer = animation.writers['pillow']
-        writer = Writer(fps=fps)
-        ani.save(gif_filename, writer=writer)
-        print(f"Animation saved to {gif_filename} (GIF, not MP4)")
-    else:
-        print("No supported video writer (ffmpeg or pillow) found. Cannot save animation.")
-
-# Show animation if requested
-if show_animation:
-    plt.show()
+os.makedirs(path_to_save, exist_ok=True)
+# Use ffmpeg writer if available, else fallback to pillow (gif)
+if 'ffmpeg' in animation.writers:
+    print("Using ffmpeg writer to save animation.")
+    Writer = animation.writers['ffmpeg']
+    writer = Writer(fps=fps, metadata=dict(artist='Me'), bitrate=1800)
+    ani.save(video_filename, writer=writer)
+    print(f"Animation saved to {video_filename}")
+elif 'pillow' in animation.writers:
+    print("ffmpeg not found, using pillow writer to save animation as GIF.")
+    gif_filename = os.path.splitext(video_filename)[0] + '.gif'
+    Writer = animation.writers['pillow']
+    writer = Writer(fps=fps)
+    ani.save(gif_filename, writer=writer)
+    print(f"Animation saved to {gif_filename} (GIF, not MP4)")
+else:
+    print("No supported video writer (ffmpeg or pillow) found. Cannot save animation.")

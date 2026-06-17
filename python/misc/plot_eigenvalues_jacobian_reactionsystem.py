@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import os
 from scipy import linalg
 from matplotlib.colors import LogNorm, Normalize, PowerNorm
-from shared_data import path_to_save, show_plots
+from shared_data import path_to_save
 
 def analytical_lambda12(c, k_f_W, k_f_Tris, K_W, K_Tris):
     """Compute analytical eigenvalues (lambda1, lambda2) for reduced 2x2 system.
@@ -214,10 +214,7 @@ fig_heat.tight_layout()
 fig_heat.savefig(os.path.join(path_to_save, "jacobian_eigenvalues_diff_heatmap.pdf"), bbox_inches="tight")
 
 # Only show plots if configured
-if show_plots:
-    plt.show()
-else:
-    plt.close('all')
+plt.close('all')
 
 # Verification printout for specified rates across concentration sets
 test_kfW = 1e-12
