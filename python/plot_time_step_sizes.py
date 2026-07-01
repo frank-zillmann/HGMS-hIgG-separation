@@ -4,8 +4,8 @@ from typing import Optional, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 
-from shared_data import path_to_obs as shared_path_to_obs
-from shared_data import path_to_save as shared_path_to_save
+from model import path_to_obs as shared_path_to_obs
+from model import path_to_save as shared_path_to_save
 
 
 def plot_time_step_sizes(

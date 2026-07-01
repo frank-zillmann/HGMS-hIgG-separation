@@ -8,17 +8,19 @@ import streamlit as st
 
 import fs3
 from HGMS_hIgG_separation import run_HGMS_hIgG_separation
-from model import build_component_system, build_reaction_system, build_solutions
-from plot_fractions import plot_fractions
-from plot_pH import plot_pH
-from plot_time_step_sizes import plot_time_step_sizes
-from shared_data import (
+from model import (
     FLOW_SHEET_LABELS,
     FRACTIONS,
     RecipeStep,
+    build_component_system,
+    build_reaction_system,
+    build_solutions,
     default_recipe,
     total_duration,
 )
+from plot_fractions import plot_fractions
+from plot_pH import plot_pH
+from plot_time_step_sizes import plot_time_step_sizes
 
 APP_ROOT = Path(__file__).resolve().parent
 REPO_ROOT = APP_ROOT.parent
@@ -136,7 +138,7 @@ def recipe_to_dataframe(recipe_steps: List[RecipeStep]) -> pd.DataFrame:
                 "Pump_%": step.pump_percentage,
                 "Mixing_%": step.mixing_percentage,
                 "Flow_Config": FLOW_SHEET_LABELS[step.flow_sheet_configuration],
-                "Inlet": step.inlet.name,
+                "Inlet": step.inlet,
                 "Fraction": step.fraction or NO_FRACTION,
             }
             for step in recipe_steps
@@ -152,7 +154,7 @@ def dataframe_to_recipe(df: pd.DataFrame) -> List[RecipeStep]:
             pump_percentage=float(row["Pump_%"]),
             mixing_percentage=float(row["Mixing_%"]),
             flow_sheet_configuration=FLOW_SHEET_LABEL_TO_ENUM[row["Flow_Config"]],
-            inlet=SOLUTIONS[row["Inlet"]],
+            inlet=row["Inlet"],
             fraction=None if row["Fraction"] == NO_FRACTION else row["Fraction"],
         )
         for row in df.to_dict(orient="records")
@@ -195,7 +197,7 @@ save_plots = True
 
 
 if "recipe_df" not in st.session_state:
-    st.session_state.recipe_df = recipe_to_dataframe(default_recipe(SOLUTIONS))
+    st.session_state.recipe_df = recipe_to_dataframe(default_recipe())
 
 if "last_run" not in st.session_state:
     st.session_state.last_run = None
@@ -232,7 +234,7 @@ total_time = total_duration(dataframe_to_recipe(edited_df)) if not errors else m
 st.markdown(f"**Total duration:** {total_time:.1f} s")
 
 if st.button("Reset to default recipe"):
-    st.session_state.recipe_df = recipe_to_dataframe(default_recipe(SOLUTIONS))
+    st.session_state.recipe_df = recipe_to_dataframe(default_recipe())
     st.experimental_rerun()
 
 st.markdown("\n")

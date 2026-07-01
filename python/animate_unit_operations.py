@@ -10,7 +10,7 @@ import matplotlib.animation as animation
 import os
 import matplotlib.gridspec as gridspec
 from model import build_component_system
-from shared_data import path_to_obs, path_to_save
+from model import path_to_obs, path_to_save
 import matplotlib.cm as cm
 
 cs = build_component_system()

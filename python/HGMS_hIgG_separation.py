@@ -9,8 +9,15 @@ from typing import Optional, Sequence, Tuple, Union
 import numpy as np
 
 import fs3
-from model import build_component_system, build_reaction_system, build_solutions
-from shared_data import FRACTIONS, FlowSheetConfig, RecipeStep, default_recipe
+from model import (
+    FRACTIONS,
+    FlowSheetConfig,
+    RecipeStep,
+    build_component_system,
+    build_reaction_system,
+    build_solutions,
+    default_recipe,
+)
 
 
 def run_HGMS_hIgG_separation(
@@ -28,9 +35,9 @@ def run_HGMS_hIgG_separation(
     cs = build_component_system()
     rs, activity_model = build_reaction_system(cs, tau_reaction)
     solutions = build_solutions(cs, rs, solver_type, timeout_seconds)
-    water = solutions["Water (B5)"].concentrations
+    water = solutions["Water (B5)"]
 
-    recipe = list(recipe_steps) if recipe_steps is not None else default_recipe(solutions)
+    recipe = list(recipe_steps) if recipe_steps is not None else default_recipe()
 
     # =============================================================
     # ========================== RECIPE ===========================
@@ -85,7 +92,7 @@ def run_HGMS_hIgG_separation(
 
     def inlet_function(t: float):
         i = section_idx(t)
-        return (recipe[-1] if i is None else recipe[i]).inlet.concentrations
+        return solutions[(recipe[-1] if i is None else recipe[i]).inlet]
 
     def flowRate_for_config(t: float, *configs) -> float:
         i = section_idx(t)

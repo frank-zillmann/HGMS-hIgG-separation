@@ -16,8 +16,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from model import build_component_system
-from shared_data import path_to_obs_dict as shared_path_to_obs_dict
-from shared_data import path_to_save as shared_path_to_save
+from model import path_to_obs_dict as shared_path_to_obs_dict
+from model import path_to_save as shared_path_to_save
 
 # ---- Static values copied from the figure (all in grams) --------------------
 # Fraction ordering keys used throughout (Feed and Wash intentionally NaN)

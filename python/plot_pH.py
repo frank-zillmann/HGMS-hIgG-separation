@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from shared_data import path_to_obs as shared_path_to_obs
-from shared_data import path_to_save as shared_path_to_save
+from model import path_to_obs as shared_path_to_obs
+from model import path_to_save as shared_path_to_save
 
 
 def plot_pH(
