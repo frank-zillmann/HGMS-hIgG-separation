@@ -1,8 +1,9 @@
-import math
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
+import altair as alt
+import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -18,117 +19,46 @@ from model import (
     default_recipe,
     total_duration,
 )
-from plot_fractions import plot_fractions
-from plot_pH import plot_pH
-from plot_time_step_sizes import plot_time_step_sizes
 
 APP_ROOT = Path(__file__).resolve().parent
 REPO_ROOT = APP_ROOT.parent
 OUTPUT_ROOT = REPO_ROOT / "data" / "ui_runs"
+EXPERIMENTAL_PATH = REPO_ROOT / "data" / "experimental_data.ods"
 
 FLOW_SHEET_LABEL_TO_ENUM = {label: enum for enum, label in FLOW_SHEET_LABELS.items()}
 NO_FRACTION = "None"
+FRACTION_OPTIONS = [NO_FRACTION] + FRACTIONS
+
+# The time-step scatter has tens of thousands of points; let Altair embed them all.
+alt.data_transformers.disable_max_rows()
 
 
-@st.cache_resource
-def get_solutions():
+# =============================================================
+# ========================== MODEL ============================
+# =============================================================
+@st.cache_resource(show_spinner="Building model and equilibrating solutions...")
+def get_model():
     cs = build_component_system()
     rs, _ = build_reaction_system(cs, tau_reaction=0.1)
-    return build_solutions(cs, rs, fs3.SolverType.ERK)
+    solutions = build_solutions(cs, rs, fs3.SolverType.ERK)
+    return cs, solutions
 
 
-SOLUTIONS = get_solutions()
+COMPONENT_SYSTEM, SOLUTIONS = get_model()
+SOLUTION_NAMES = list(SOLUTIONS)
 
 
-st.set_page_config(
-    page_title="HGMS hIgG Simulation Studio",
-    page_icon="HG",
-    layout="wide",
-)
-
-st.markdown(
-    """
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
-
-:root {
-  --ink: #0b1a1a;
-  --muted: #4b5b5b;
-  --accent: #0f8a6a;
-  --accent-2: #f0b429;
-  --panel: rgba(255, 255, 255, 0.85);
-  --panel-border: rgba(13, 33, 33, 0.12);
-  --bg: radial-gradient(circle at 15% 20%, #e6f7f2 0%, #f7f5ea 45%, #f2efe7 100%);
-}
-
-html, body, [class*="stApp"] {
-  background: var(--bg);
-  color: var(--ink);
-  font-family: 'Space Grotesk', sans-serif;
-}
-
-section[data-testid="stSidebar"], div[data-testid="stSidebar"] {
-    display: none;
-}
-
-h1, h2, h3 {
-  letter-spacing: -0.02em;
-}
-
-.small-note {
-  font-family: 'IBM Plex Mono', monospace;
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-.stButton>button {
-  background: var(--accent);
-  color: white;
-  border-radius: 999px;
-  padding: 0.6rem 1.4rem;
-  border: none;
-  box-shadow: 0 10px 20px rgba(15, 138, 106, 0.2);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-.stButton>button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 12px 26px rgba(15, 138, 106, 0.25);
-}
-
-.panel {
-  background: var(--panel);
-  border: 1px solid var(--panel-border);
-  border-radius: 18px;
-    margin: 1rem 0;
-  padding: 1.2rem 1.4rem;
-  box-shadow: 0 18px 40px rgba(15, 24, 24, 0.08);
-}
-
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.fade-in {
-  animation: fadeInUp 0.6s ease both;
-}
-</style>
-""",
-    unsafe_allow_html=True,
-)
-
-st.markdown(
-        """
-<div class="panel fade-in">
-    <h1>HGMS hIgG Simulation Studio</h1>
-    <p class="small-note">Shape the recipe, launch a run, and inspect the core figures in one place.</p>
-</div>
-""",
-        unsafe_allow_html=True,
-)
+# Fixed solver settings for this prototype UI.
+SOLVER_TYPE = fs3.SolverType.ERK
+TAU_REACTION = 0.1
+DISCRETIZATION_FACTOR = 0.1
+KF_ION = 1.0e3
+TIMEOUT_SECONDS = float("inf")
 
 
+# =============================================================
+# ========================== RECIPE <-> DF ====================
+# =============================================================
 def recipe_to_dataframe(recipe_steps: List[RecipeStep]) -> pd.DataFrame:
     return pd.DataFrame(
         [
@@ -175,154 +105,219 @@ def validate_recipe(df: pd.DataFrame) -> List[str]:
         errors.append("Mixing percentage must be within 0-100.")
     if df["Name"].isna().any() or (df["Name"].astype(str).str.strip() == "").any():
         errors.append("Every step needs a name.")
+    if not df["Inlet"].isin(SOLUTION_NAMES).all():
+        errors.append(f"Inlet must be one of: {', '.join(SOLUTION_NAMES)}.")
+    if not df["Fraction"].isin(FRACTION_OPTIONS).all():
+        errors.append("Fraction contains an unknown value.")
     return errors
 
 
-def recipe_phase_transitions(recipe_steps: List[RecipeStep]) -> List[float]:
-    transitions = [0.0]
-    total = 0.0
+def phase_transitions(recipe_steps: List[RecipeStep]) -> List[float]:
+    """Cumulative end time of every step -> vertical guide lines matching the recipe."""
+    ends, total = [], 0.0
     for step in recipe_steps:
         total += step.t_duration
-        transitions.append(total)
-    return transitions
+        ends.append(total)
+    return ends
 
 
-solver_type = fs3.SolverType.ERK
-tau_reaction = 0.1
-discretization_factor = 0.1
-kf_ion = 1.0e3
-timeout_seconds = float("inf")
-save_obs = True
-save_plots = True
+# =============================================================
+# ========================== CHARTS ===========================
+# =============================================================
+def ph_chart(obs_dir: Path, transitions: List[float]) -> alt.Chart:
+    activity = np.load(obs_dir / "pipe_outlet_middle_cell_pH_activity.npy")
+    concentration = np.load(obs_dir / "pipe_outlet_middle_cell_pH_concentration.npy")
+    time = np.arange(0.0, len(activity) * 2.0, 2.0)
+
+    frames = [
+        pd.DataFrame({"time": time, "pH": activity, "series": "Simulation (activity)"}),
+        pd.DataFrame({"time": time, "pH": concentration, "series": "Simulation (concentration)"}),
+    ]
+
+    experimental = load_experimental()
+    if experimental is not None:
+        frames.append(
+            pd.DataFrame(
+                {"time": experimental["time_s"], "pH": experimental["pH"] - 0.35, "series": "Experimental"}
+            )
+        )
+
+    df = pd.concat(frames, ignore_index=True)
+    lines = (
+        alt.Chart(df)
+        .mark_line()
+        .encode(
+            x=alt.X("time:Q", title="Time [s]"),
+            y=alt.Y("pH:Q", title="pH [-]", scale=alt.Scale(zero=False)),
+            color=alt.Color("series:N", title=None),
+            tooltip=[
+                alt.Tooltip("series:N", title="Series"),
+                alt.Tooltip("time:Q", title="Time [s]", format=".0f"),
+                alt.Tooltip("pH:Q", format=".2f"),
+            ],
+        )
+    )
+    rules = (
+        alt.Chart(pd.DataFrame({"t": transitions}))
+        .mark_rule(color="gray", opacity=0.35, strokeDash=[3, 3])
+        .encode(x="t:Q")
+    )
+    return alt.layer(rules, lines).properties(height=420).interactive()
 
 
-if "recipe_df" not in st.session_state:
-    st.session_state.recipe_df = recipe_to_dataframe(default_recipe())
+def fractions_chart(obs_dir: Path, component: str = "hIgG") -> Optional[alt.Chart]:
+    npz_path = obs_dir / "unit_operations.npz"
+    if not npz_path.exists():
+        return None
+    data = np.load(npz_path)
+    component_idx = COMPONENT_SYSTEM.get_idx(component)
 
+    rows = [
+        {"scenario": "Simulation", "fraction": name, "mass": float(data[name][-1, 0, component_idx]) * 1000.0}
+        for name in FRACTIONS
+        if name in data
+    ]
+    experiment = {"Elution 1": 0.32, "Elution 2": 0.63, "Elution 3": 0.42, "Elution 4": 0.32, "Elution 5": 0.06}
+    rows += [{"scenario": "Experiment", "fraction": name, "mass": mass} for name, mass in experiment.items()]
+
+    df = pd.DataFrame(rows)
+    return (
+        alt.Chart(df)
+        .mark_bar()
+        .encode(
+            x=alt.X("scenario:N", title=None),
+            y=alt.Y("mass:Q", title=f"Mass {component} [g]"),
+            color=alt.Color("fraction:N", title="Fraction", sort=FRACTIONS),
+            order=alt.Order("fraction:N", sort="ascending"),
+            tooltip=[
+                alt.Tooltip("scenario:N", title="Scenario"),
+                alt.Tooltip("fraction:N", title="Fraction"),
+                alt.Tooltip("mass:Q", title="Mass [g]", format=".3f"),
+            ],
+        )
+        .properties(height=420)
+    )
+
+
+def time_step_chart(obs_dir: Path) -> alt.Chart:
+    timestamps = np.load(obs_dir / "internal_timestamps.npy")
+    df = pd.DataFrame({"time": timestamps[:-1], "dt": np.diff(timestamps)})
+    return (
+        alt.Chart(df)
+        .mark_circle(size=8, opacity=0.5)
+        .encode(
+            x=alt.X("time:Q", title="Time [s]"),
+            y=alt.Y("dt:Q", title="Step size [s]"),
+            tooltip=[alt.Tooltip("time:Q", title="Time [s]", format=".2f"), alt.Tooltip("dt:Q", title="Step size [s]", format=".4f")],
+        )
+        .properties(height=380)
+        .interactive()
+    )
+
+
+@st.cache_data(show_spinner=False)
+def load_experimental() -> Optional[pd.DataFrame]:
+    if not EXPERIMENTAL_PATH.exists():
+        return None
+    try:
+        df = pd.read_excel(EXPERIMENTAL_PATH, engine="odf")
+    except Exception:
+        return None
+    return df[["time_s", "pH"]].sort_values("time_s")
+
+
+# =============================================================
+# ========================== LAYOUT ===========================
+# =============================================================
+st.set_page_config(page_title="HGMS hIgG Simulation Studio", page_icon="🧪", layout="wide")
+st.title("HGMS hIgG Simulation Studio")
+st.caption("Shape the recipe, launch a run, and inspect the core figures in one place.")
+
+if "editor_version" not in st.session_state:
+    st.session_state.editor_version = 0
 if "last_run" not in st.session_state:
     st.session_state.last_run = None
 
-st.markdown("\n")
-
-st.markdown("<div class=\"panel\"><h2>Recipe Editor</h2></div>", unsafe_allow_html=True)
+# ----- Recipe editor -----------------------------------------------------------
+st.subheader("Recipe editor")
 edited_df = st.data_editor(
-    st.session_state.recipe_df,
-    num_rows="fixed",
-    use_container_width=True,
+    recipe_to_dataframe(default_recipe()),
+    key=f"recipe_editor_{st.session_state.editor_version}",
+    num_rows="dynamic",
+    width="stretch",
     column_config={
-        "Flow_Config": st.column_config.SelectboxColumn(
-            "Flow Config",
-            options=list(FLOW_SHEET_LABEL_TO_ENUM.keys()),
-        ),
-        "Inlet": st.column_config.SelectboxColumn(
-            "Inlet Solution",
-            options=list(SOLUTIONS),
-        ),
-        "Fraction": st.column_config.SelectboxColumn(
-            "Fraction",
-            options=[NO_FRACTION] + FRACTIONS,
-        ),
+        "Duration_s": st.column_config.NumberColumn("Duration [s]", min_value=0.0, step=1.0),
+        "Pump_%": st.column_config.NumberColumn("Pump [%]", min_value=0.0, max_value=100.0, step=1.0),
+        "Mixing_%": st.column_config.NumberColumn("Mixing [%]", min_value=0.0, max_value=100.0, step=1.0),
+        "Flow_Config": st.column_config.SelectboxColumn("Flow config", options=list(FLOW_SHEET_LABEL_TO_ENUM)),
+        "Inlet": st.column_config.SelectboxColumn("Inlet solution", options=SOLUTION_NAMES),
+        "Fraction": st.column_config.SelectboxColumn("Fraction", options=FRACTION_OPTIONS),
     },
 )
-st.session_state.recipe_df = edited_df
 
 errors = validate_recipe(edited_df)
 if errors:
     st.error(" ".join(errors))
-
-total_time = total_duration(dataframe_to_recipe(edited_df)) if not errors else math.nan
-st.markdown(f"**Total duration:** {total_time:.1f} s")
+    st.markdown("**Total duration:** –")
+else:
+    st.markdown(f"**Total duration:** {total_duration(dataframe_to_recipe(edited_df)):.1f} s")
 
 if st.button("Reset to default recipe"):
-    st.session_state.recipe_df = recipe_to_dataframe(default_recipe())
-    st.experimental_rerun()
+    st.session_state.editor_version += 1
+    st.rerun()
 
-st.markdown("\n")
-
-st.markdown("<div class=\"panel\"><h2>Run</h2></div>", unsafe_allow_html=True)
+# ----- Run ---------------------------------------------------------------------
+st.subheader("Run")
 run_col_left, run_col_right = st.columns([3, 1])
 with run_col_left:
     run_name = st.text_input("Run name", placeholder="e.g. baseline_recipe")
 with run_col_right:
-    run_button = st.button("Run simulation")
+    st.markdown("<div style='height: 1.75rem'></div>", unsafe_allow_html=True)
+    run_button = st.button("Run simulation", type="primary", disabled=bool(errors), width="stretch")
 
 if run_button:
-    if errors:
-        st.error("Fix the recipe issues before running.")
-    else:
-        recipe_steps = dataframe_to_recipe(edited_df)
-        run_tag = run_name.strip() or None
-        if run_tag is not None:
-            run_tag = f"{run_tag}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-        with st.spinner("Running simulation..."):
-            result, run_dir, obs_dir = run_HGMS_hIgG_separation(
-                kf_ion=kf_ion,
-                tau_reaction=tau_reaction,
-                save_obs=save_obs,
-                timeout_seconds=timeout_seconds,
-                solver_type=solver_type,
-                discretization_factor=discretization_factor,
-                recipe_steps=recipe_steps,
-                output_base_dir=OUTPUT_ROOT,
-                run_tag=run_tag,
-                return_paths=True,
-            )
-        st.session_state.last_run = {
-            "result": result,
-            "run_dir": run_dir,
-            "obs_dir": obs_dir,
-        }
-        st.success("Run finished.")
+    recipe_steps = dataframe_to_recipe(edited_df)
+    run_tag = run_name.strip() or None
+    if run_tag is not None:
+        run_tag = f"{run_tag}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+    with st.spinner("Running simulation..."):
+        result, run_dir, obs_dir = run_HGMS_hIgG_separation(
+            kf_ion=KF_ION,
+            tau_reaction=TAU_REACTION,
+            save_obs=True,
+            timeout_seconds=TIMEOUT_SECONDS,
+            solver_type=SOLVER_TYPE,
+            discretization_factor=DISCRETIZATION_FACTOR,
+            recipe_steps=recipe_steps,
+            output_base_dir=OUTPUT_ROOT,
+            run_tag=run_tag,
+            return_paths=True,
+        )
+    st.session_state.last_run = {
+        "run_dir": run_dir,
+        "transitions": phase_transitions(recipe_steps),
+    }
+    st.success("Run finished.")
 
-
-st.markdown("\n")
-
-st.markdown("\n")
-
-st.markdown("<div class=\"panel\"><h2>Results</h2></div>", unsafe_allow_html=True)
-
-selected_run_dir: Optional[Path] = None
-if st.session_state.last_run is not None:
-    selected_run_dir = st.session_state.last_run["run_dir"]
-
-if selected_run_dir is None:
+# ----- Results -----------------------------------------------------------------
+st.subheader("Results")
+last_run = st.session_state.last_run
+if last_run is None:
     st.info("Run a simulation to view results.")
 else:
-    obs_dir = selected_run_dir / "obs"
-    plots_dir = selected_run_dir / "plots"
-
-    if obs_dir.exists():
-        phase_transitions = None
-        if not errors:
-            phase_transitions = recipe_phase_transitions(dataframe_to_recipe(edited_df))
-
-        st.markdown("<div class=\"panel\"><h3>pH Profile</h3></div>", unsafe_allow_html=True)
-        fig, _ = plot_pH(
-            path_to_obs=str(obs_dir),
-            path_to_save=str(plots_dir),
-            include_experimental=True,
-            phase_transitions=phase_transitions,
-            save_plots=save_plots,
-            close_fig=False,
-        )
-        st.pyplot(fig, use_container_width=True)
-
-        st.markdown("<div class=\"panel\"><h3>Fraction Masses</h3></div>", unsafe_allow_html=True)
-        fig, _ = plot_fractions(
-            path_to_obs_dict={selected_run_dir.name: str(obs_dir)},
-            path_to_save=str(plots_dir),
-            save_plots=save_plots,
-            close_fig=False,
-        )
-        st.pyplot(fig, use_container_width=True)
-
-        st.markdown("<div class=\"panel\"><h3>Time Step Sizes</h3></div>", unsafe_allow_html=True)
-        fig, _ = plot_time_step_sizes(
-            path_to_obs=str(obs_dir),
-            path_to_save=str(plots_dir),
-            save_plots=save_plots,
-            close_fig=False,
-        )
-        st.pyplot(fig, use_container_width=True)
-    else:
+    obs_dir = Path(last_run["run_dir"]) / "obs"
+    if not obs_dir.exists():
         st.warning("Observation data not found for this run.")
+    else:
+        st.markdown("##### pH profile")
+        st.altair_chart(ph_chart(obs_dir, last_run["transitions"]), width="stretch")
+
+        st.markdown("##### Fraction masses")
+        frac = fractions_chart(obs_dir)
+        if frac is None:
+            st.warning("Fraction data not found for this run.")
+        else:
+            st.altair_chart(frac, width="stretch")
+
+        st.markdown("##### Solver time-step sizes")
+        st.altair_chart(time_step_chart(obs_dir), width="stretch")
