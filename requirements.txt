@@ -1,0 +1,17 @@
+# Python dependencies for the HGMS hIgG separation model, plots and UI.
+#
+# NOTE: `fs3` (the FS³ simulation bindings) is NOT on PyPI. 
+# It is a custom-built package for this project and must be installed/built separately.
+numpy
+pandas
+matplotlib
+
+# Interactive plots (Plotly) + static PDF/PNG export (kaleido, needs a Chrome/Chromium).
+plotly
+kaleido
+
+# Web UI.
+streamlit
+
+# To read the experimental pH data (data/experimental_data.ods).
+odfpy
