@@ -1,10 +1,11 @@
 """Python port of src/HGMS_hIgG_separation.cpp using FS³'s python bindings."""
 
 import math
+import threading
 from bisect import bisect_right
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Sequence, Tuple, Union
+from typing import Callable, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
@@ -31,6 +32,7 @@ def run_HGMS_hIgG_separation(
     output_base_dir: Optional[Union[str, Path]] = None,
     run_tag: Optional[str] = None,
     return_paths: bool = False,
+    progress_callback: Optional[Callable[[np.ndarray, np.ndarray, float, float], None]] = None,
 ):
     cs = build_component_system()
     rs, activity_model = build_reaction_system(cs, tau_reaction)
@@ -212,7 +214,43 @@ def run_HGMS_hIgG_separation(
     # =============================================================
     # ========================== SOLVING ==========================
     # =============================================================
-    solver.solve(total_duration, timeout_seconds)
+    if progress_callback is None:
+        solver.solve(total_duration, timeout_seconds)
+    else:
+        # solve() is one-shot, so run it in a background thread. The pipe-outlet observer is
+        # shared with C++ and filled in place as the solve progresses, so the main thread can
+        # poll it (~10 Hz) and plot whatever is already filled. convert_to_pH reads fixed-size
+        # buffers and is safe to call while solving (solve releases the GIL); we only read the
+        # snapshots the solver has already reached.
+        cell_index = pipe_outlet.n_cells // 2
+        snapshot_times = np.linspace(0.0, total_duration, n_obs_time_steps)
+
+        done = threading.Event()
+        solve_error: list = []
+
+        def _worker():
+            try:
+                solver.solve(total_duration, timeout_seconds)
+            except BaseException as exc:  # re-raised on the main thread below
+                solve_error.append(exc)
+            finally:
+                done.set()
+
+        worker = threading.Thread(target=_worker, daemon=True)
+        worker.start()
+        last_filled = 0
+        while not done.wait(0.1):
+            n_filled = int(np.searchsorted(snapshot_times, solver.get_t(), side="right")) - 1
+            if n_filled >= 2 and n_filled != last_filled:
+                last_filled = n_filled
+                ph = np.asarray(
+                    fs3.convert_to_pH(observers["pipe_outlet"], cell_index, pipe_outlet.cell_volume, cs, activity_model)
+                )[:n_filled]
+                finite = np.isfinite(ph)
+                progress_callback(snapshot_times[:n_filled][finite], ph[finite], solver.get_t(), total_duration)
+        worker.join()
+        if solve_error:
+            raise solve_error[0]
     t_solve_duration = solver.get_solve_time()
 
     # =============================================================
