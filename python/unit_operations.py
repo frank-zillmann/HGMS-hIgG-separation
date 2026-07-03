@@ -2,8 +2,7 @@
 
 import math
 from bisect import bisect_right
-from dataclasses import dataclass, field
-from typing import Dict, List, Sequence
+from typing import Dict, List, Sequence, Tuple
 
 import numpy as np
 
@@ -21,23 +20,16 @@ _MIXING_PERCENTAGES = np.array([0, 20, 40, 60, 80], dtype=np.float64)
 _D_AX_CURVE = np.array([0.0, 1.3e-5, 5e-5, 6.9e-5, 8.4e-5], dtype=np.float64)
 
 
-@dataclass(slots=True)
-class Plant:
-    """The assembled process and the unit operations that get observed."""
-    process: fs3.Process
-    pipe_inlet: fs3.Pipe
-    pc: object
-    pipe_outlet: fs3.Pipe
-    pipe_loop: fs3.Pipe
-    fractions: Dict[str, fs3.Volume] = field(default_factory=dict)
-
-
 def _a_eff_function(um_u0_ratio: float) -> float:
     a1, a2, a3, p, q = 2.035, 107.1, -0.00808, 0.07477, 1.083
     return 1.0 / (1.0 + a1 * math.exp(-p * um_u0_ratio) + a2 * math.exp(-q * um_u0_ratio) + a3)
 
 
-def build_plant(rs, cs, recipe: Sequence[RecipeStep], solutions: Dict[str, np.ndarray], discretization_factor: float) -> Plant:
+def build_process(
+    rs, cs, recipe: Sequence[RecipeStep], solutions: Dict[str, np.ndarray], discretization_factor: float
+) -> Tuple[fs3.Process, Dict[str, object]]:
+    """Assemble the process. Returns ``(process, unit_operations)`` where a unit operation is a
+    fraction iff its name is in ``FRACTIONS``."""
     water = solutions["Water (B5)"]
 
     cumulative_ends: List[float] = []
@@ -138,4 +130,13 @@ def build_plant(rs, cs, recipe: Sequence[RecipeStep], solutions: Dict[str, np.nd
     process.add_connection(pipe_outlet.exit(), pipe_loop.entry(), flow_rate_loop)
     process.add_connection(pipe_loop.exit(), pipe_inlet.entry(), flow_rate_loop)
 
-    return Plant(process, pipe_inlet, pc, pipe_outlet, pipe_loop, fractions)
+    unit_operations = {
+        "inlet": inlet,
+        "pipe_inlet": pipe_inlet,
+        "pc": pc,
+        "dead_volume": dead_volume,
+        "pipe_outlet": pipe_outlet,
+        "pipe_loop": pipe_loop,
+        **fractions,
+    }
+    return process, unit_operations

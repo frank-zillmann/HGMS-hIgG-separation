@@ -1,17 +1,19 @@
-"""Batch runner: solve an experiment, save observations and figures to disk.
+"""Batch runner: solve the default-recipe experiment, save observations and figures to disk.
 
-This is the command-line alternative to ``ui.py``. Run with ``python run.py``.
+Command-line alternative to ``ui.py``. Run with ``python run.py``.
 """
 
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Optional, Union
 
-from experiment import build_simulation
-from figures import result_figures
+import fs3
+from experiment import build_experiment
+from plot_fractions import EXPERIMENT, build_fractions_figure
+from plot_pH import build_ph_figure, load_experimental
+from plot_time_step_sizes import build_time_step_figure
 from observers import save_observations
-from plot_pH import load_experimental
-from recipe import RecipeStep
+from recipe import phase_transitions
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = REPO_ROOT / "data"
@@ -23,32 +25,41 @@ DEFAULT_RUN_DIR = DATA_DIR / "run_fitted_no_MNP_hydroxyl_reactions_ERK_for_time_
 
 
 def run(
-    recipe: Optional[Sequence[RecipeStep]] = None,
     *,
     discretization_factor: float = 0.5,
-    run_tag: Optional[str] = None,
-    output_base_dir: Optional[Path] = None,
-    save: bool = True,
+    tau_reaction: float = 0.1,
+    solver_type=fs3.SolverType.ERK,
+    timeout_seconds: float = float("inf"),
+    output_dir: Optional[Union[str, Path]] = None,
 ):
-    sim = build_simulation(recipe, discretization_factor=discretization_factor)
-    print(f"Total duration: {sim.total_duration} s, {sim.n_obs_time_steps} snapshots.")
-    sim.solve()
-    print(f"Solved in {sim.solver.get_solve_time():.1f} s ({len(sim.solver.get_internal_time_stamps())} internal steps).")
+    experiment = build_experiment(
+        discretization_factor=discretization_factor,
+        tau_reaction=tau_reaction,
+        solver_type=solver_type,
+        timeout_seconds=timeout_seconds,
+    )
+    print(f"Total duration: {experiment.total_duration} s, {experiment.n_obs_time_steps} snapshots.")
+    experiment.solve()
+    print(f"Solved in {experiment.solver.get_solve_time():.1f} s ({len(experiment.solver.get_internal_time_stamps())} internal steps).")
 
-    results = sim.results()
-    if save:
-        run_dir = Path(output_base_dir or RUNS_DIR) / (run_tag or datetime.now().strftime("run_%Y-%m-%d_%H-%M-%S"))
-        save_observations(sim, run_dir / "obs")
+    output_dir = Path(output_dir) if output_dir is not None else RUNS_DIR / datetime.now().strftime("run_%Y-%m-%d_%H-%M-%S")
+    save_observations(experiment, output_dir / "obs")
 
-        plots_dir = run_dir / "plots"
-        plots_dir.mkdir(parents=True, exist_ok=True)
-        figures = result_figures(results, load_experimental(str(EXPERIMENTAL_PATH)))
-        figures["pH"].write_image(str(plots_dir / "plot_pH.pdf"))
-        figures["fractions"].write_image(str(plots_dir / "plot_fractions.pdf"))
-        figures["time_steps"].write_image(str(plots_dir / "plot_time_step_sizes.png"), scale=3)
-        print(f"Saved observations and plots to {run_dir}")
+    span = (0.0, experiment.total_duration)
+    plots_dir = output_dir / "plots"
+    plots_dir.mkdir(parents=True, exist_ok=True)
+    build_ph_figure(
+        experiment.times(), experiment.outlet_pH(True), experiment.outlet_pH(False),
+        experimental=load_experimental(str(EXPERIMENTAL_PATH)),
+        transitions=phase_transitions(experiment.recipe), x_range=span,
+    ).write_image(str(plots_dir / "plot_pH.pdf"))
+    build_fractions_figure(
+        {"Simulation": experiment.fraction_masses(), "Experiment": EXPERIMENT}
+    ).write_image(str(plots_dir / "plot_fractions.pdf"))
+    build_time_step_figure(*experiment.step_sizes(), x_range=span).write_image(str(plots_dir / "plot_time_step_sizes.png"), scale=3)
 
-    return sim, results
+    print(f"Saved observations and plots to {output_dir}")
+    return experiment
 
 
 if __name__ == "__main__":

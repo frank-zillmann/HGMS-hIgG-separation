@@ -7,18 +7,17 @@ import numpy as np
 
 import fs3
 from recipe import FRACTIONS
-from unit_operations import Plant
 
 
-def build_observers(solver, plant: Plant, total_duration: float, n_obs_time_steps: int) -> Dict[str, fs3.TimeSeriesObserver]:
+def build_observers(solver, unit_operations: Dict[str, object], total_duration: float, n_obs_time_steps: int) -> Dict[str, fs3.TimeSeriesObserver]:
     """One observer per observed unit operation, registered with the solver (records in place)."""
     targets = {
-        "pipe_inlet": plant.pipe_inlet.all(),
-        "pc_liquid": plant.pc.liquid(),
-        "pc_slurry": plant.pc.slurry(),
-        "pipe_outlet": plant.pipe_outlet.all(),
-        "pipe_loop": plant.pipe_loop.all(),
-        **{name: frac.all() for name, frac in plant.fractions.items()},
+        "pipe_inlet": unit_operations["pipe_inlet"].all(),
+        "pc_liquid": unit_operations["pc"].liquid(),
+        "pc_slurry": unit_operations["pc"].slurry(),
+        "pipe_outlet": unit_operations["pipe_outlet"].all(),
+        "pipe_loop": unit_operations["pipe_loop"].all(),
+        **{name: unit_operations[name].all() for name in FRACTIONS},
     }
     return {
         name: fs3.TimeSeriesObserver(0.0, total_duration, n_obs_time_steps, target, solver, True, True)
