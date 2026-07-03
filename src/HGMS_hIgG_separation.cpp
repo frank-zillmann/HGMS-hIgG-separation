@@ -691,7 +691,6 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
 
     TimeSeriesObserver obs_complete_y_vector(0, total_duration, n_obs_time_steps,
                                              ArrayMapper(inlet.get(), solver.getYSize() / cs.n_components, cs.n_components), solver, save_obs);
-    TimeSeriesObserver obs_pc_outlet(0, total_duration, n_obs_time_steps, pc->exit(), solver, save_obs);
 
     // =============================================================
     // ========================== SOLVING ==========================
@@ -730,8 +729,6 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
 
         auto obs_complete_y_vector_filename = obs_dir + "/complete_y_vector.npy";
         obs_complete_y_vector.save_to_npy(obs_complete_y_vector_filename);
-        auto obs_pc_outlet_filename = obs_dir + "/pc_outlet.npy";
-        obs_pc_outlet.save_to_npy(obs_pc_outlet_filename);
 
         // Convert pipe outlet data to pH values for each cell and save
         std::size_t cell_index = pipe_outlet->n_cells / 2;  // middle cell
