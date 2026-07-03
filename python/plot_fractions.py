@@ -1,20 +1,17 @@
-"""Plot the mass of a component captured in each fraction as a stacked bar chart.
+"""Fraction-mass figure builder (Plotly stacked bar).
 
-The measured "Experiment" values (elutions only) from the paper figure are added as an
-extra scenario; Feed/Wash are unknown there and left out.
+The measured "Experiment" values (elutions only) from the paper figure can be added as an
+extra scenario; Feed/Wash are unknown there and drawn as gaps.
 
 Units: grams [g]
 """
 
-import os
-from typing import Dict, Optional, Sequence, Tuple
+from typing import Dict, Sequence
 
 import numpy as np
 import plotly.graph_objects as go
 
-from model import FRACTIONS, build_component_system
-from model import path_to_obs_dict as shared_path_to_obs_dict
-from model import path_to_save as shared_path_to_save
+from recipe import FRACTIONS
 
 # Elutions aligned first, then Feed and Wash stacked above.
 DEFAULT_PLOT_ORDER = FRACTIONS[-5:] + FRACTIONS[:5]
@@ -31,8 +28,8 @@ EXPERIMENT = {
     "Elution 1": 0.32, "Elution 2": 0.63, "Elution 3": 0.42, "Elution 4": 0.32, "Elution 5": 0.06,
 }
 
-# Reference datasets from the paper/Matlab (elutions only; Feed/Wash unknown). 
-# Uncomment and merge into ``datasets`` in ``plot_fractions`` to overlay them.
+# Reference datasets from the paper/Matlab (elutions only; Feed/Wash unknown).
+# Uncomment and merge into ``datasets`` to overlay them.
 # REFERENCE_DATASETS = {
 #     "Matlab, fitted Langmuir, main simulation":
 #         {"Elution 1": 0.32, "Elution 2": 0.63, "Elution 3": 0.42, "Elution 4": 0.29, "Elution 5": 0.09},
@@ -80,49 +77,3 @@ def build_fractions_figure(
         margin=dict(l=60, r=20, t=60, b=50),
     )
     return fig
-
-
-def load_fraction_masses(obs_path: str, component_idx: int) -> Optional[Dict[str, float]]:
-    npz_path = os.path.join(obs_path, "unit_operations.npz")
-    if not os.path.exists(npz_path):
-        print(f"Warning: Missing simulation data at {npz_path}.")
-        return None
-    data = np.load(npz_path)
-    # Final time point, single cell; raw kg -> g.
-    return {name: float(data[name][-1, 0, component_idx]) * 1000.0 for name in FRACTIONS if name in data}
-
-
-def plot_fractions(
-    path_to_obs_dict: Optional[Dict[str, str]] = None,
-    path_to_save: Optional[str] = None,
-    component: str = "hIgG",
-    plotted_fraction_names: Optional[Sequence[str]] = None,
-    save_plots: bool = True,
-) -> Tuple[go.Figure, Optional[str]]:
-    path_to_obs_dict = path_to_obs_dict or shared_path_to_obs_dict
-    path_to_save = path_to_save or shared_path_to_save
-    plotted_fraction_names = plotted_fraction_names or DEFAULT_PLOT_ORDER
-
-    component_idx = build_component_system().get_idx(component)
-    datasets: Dict[str, Dict[str, float]] = {}
-    for sim_name, obs_path in path_to_obs_dict.items():
-        masses = load_fraction_masses(obs_path, component_idx)
-        if masses is not None:
-            datasets[sim_name] = masses
-    datasets["Experiment"] = dict(EXPERIMENT)
-    # datasets.update(REFERENCE_DATASETS)
-
-    fig = build_fractions_figure(datasets, plotted_fraction_names, component)
-
-    outfile = None
-    if save_plots:
-        os.makedirs(path_to_save, exist_ok=True)
-        outfile = os.path.join(path_to_save, "plot_fractions.pdf")
-        fig.write_image(outfile)
-        print(f"Saved to {outfile}!")
-
-    return fig, outfile
-
-
-if __name__ == "__main__":
-    plot_fractions()

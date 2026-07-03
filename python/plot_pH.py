@@ -1,12 +1,10 @@
-import os
-from typing import List, Optional, Sequence, Tuple
+"""pH figure builder (Plotly)."""
 
-import numpy as np
+import os
+from typing import Optional, Sequence, Tuple
+
 import pandas as pd
 import plotly.graph_objects as go
-
-from model import path_to_obs as shared_path_to_obs
-from model import path_to_save as shared_path_to_save
 
 
 def build_ph_figure(
@@ -51,9 +49,8 @@ def build_ph_figure(
     return fig
 
 
-def load_experimental(
-    experimental_path: str, t_from: float, t_until: float
-) -> Optional[pd.DataFrame]:
+def load_experimental(experimental_path: str) -> Optional[pd.DataFrame]:
+    """Read the optional experimental pH reference (.ods); returns None if unavailable."""
     if not os.path.exists(experimental_path):
         print(f"Warning: Experimental data not found at {experimental_path}.")
         return None
@@ -62,49 +59,4 @@ def load_experimental(
     except Exception as exc:  # missing odf engine, bad file, ...
         print(f"Warning: Could not read experimental data ({exc}).")
         return None
-    df = df[["time_s", "pH"]].sort_values("time_s")
-    return df[(df["time_s"] >= t_from) & (df["time_s"] <= t_until)]
-
-
-def plot_pH(
-    path_to_obs: Optional[str] = None,
-    path_to_save: Optional[str] = None,
-    experimental_path: str = "data/experimental_data.ods",
-    t_plot_from: float = 0.0,
-    t_plot_until: float = 6600.0,
-    phase_transitions: Optional[List[float]] = None,
-    include_experimental: bool = True,
-    save_plots: bool = True,
-) -> Tuple[go.Figure, Optional[str]]:
-    path_to_obs = path_to_obs or shared_path_to_obs
-    path_to_save = path_to_save or shared_path_to_save
-
-    activity = np.load(os.path.join(path_to_obs, "pipe_outlet_middle_cell_pH_activity.npy"))
-    concentration = np.load(os.path.join(path_to_obs, "pipe_outlet_middle_cell_pH_concentration.npy"))
-    times = np.arange(0.0, len(activity) * 2.0, 2.0)
-
-    mask = (times >= t_plot_from) & (times <= t_plot_until)
-    times, activity, concentration = times[mask], activity[mask], concentration[mask]
-
-    experimental = None
-    if include_experimental:
-        experimental = load_experimental(experimental_path, t_plot_from, t_plot_until)
-
-    transitions = [t for t in (phase_transitions or []) if t_plot_from <= t <= t_plot_until]
-
-    fig = build_ph_figure(
-        times, activity, concentration, experimental, transitions,
-        x_range=(t_plot_from, t_plot_until),
-    )
-
-    outfile = None
-    if save_plots:
-        os.makedirs(path_to_save, exist_ok=True)
-        outfile = os.path.join(path_to_save, "plot_pH.pdf")
-        fig.write_image(outfile)
-
-    return fig, outfile
-
-
-if __name__ == "__main__":
-    plot_pH()
+    return df[["time_s", "pH"]].sort_values("time_s")

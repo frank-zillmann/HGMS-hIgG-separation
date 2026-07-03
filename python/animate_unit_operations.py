@@ -9,9 +9,12 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import os
 import matplotlib.gridspec as gridspec
-from model import build_component_system
-from model import path_to_obs, path_to_save
+from components import build_component_system
+from run import DEFAULT_RUN_DIR
 import matplotlib.cm as cm
+
+path_to_obs = str(DEFAULT_RUN_DIR / "obs")
+path_to_save = str(DEFAULT_RUN_DIR / "plots")
 
 cs = build_component_system()
 
