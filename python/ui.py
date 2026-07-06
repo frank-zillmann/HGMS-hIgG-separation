@@ -1,7 +1,7 @@
 import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, List
+from typing import List
 
 import pandas as pd
 import streamlit as st
@@ -26,7 +26,7 @@ from solutions import build_solutions
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_ROOT = REPO_ROOT / "data" / "ui_runs"
-EXPERIMENTAL_PATH = REPO_ROOT / "data" / "experimental_data.ods"
+EXPERIMENTAL_PATH = REPO_ROOT / "data" / "experimental_pH.csv"
 
 FLOW_SHEET_LABEL_TO_ENUM = {label: enum for enum, label in FLOW_SHEET_LABELS.items()}
 NO_FRACTION = "None"
@@ -50,27 +50,12 @@ def get_experimental():
 SOLUTION_NAMES = list(get_solutions(0.1, "ERK"))
 
 
-def solve_streaming(experiment: Experiment, on_update: Callable[[Experiment], None], interval: float = 1.0) -> None:
-    """Solve in a background thread; call ``on_update(experiment)`` every ``interval`` s and once at the end."""
-    done = threading.Event()
-    error: list = []
-
-    def worker():
-        try:
-            experiment.solve()
-        except BaseException as exc:  # re-raised on the main thread below
-            error.append(exc)
-        finally:
-            done.set()
-
-    thread = threading.Thread(target=worker, daemon=True)
-    thread.start()
-    while not done.wait(interval):
-        on_update(experiment)
-    thread.join()
-    on_update(experiment)
-    if error:
-        raise error[0]
+def _solve(experiment: Experiment, holder: dict):
+    """Run the (blocking) solve; store any error so the UI thread can surface it afterwards."""
+    try:
+        experiment.solve()
+    except BaseException as exc:
+        holder["error"] = exc
 
 
 # =============================================================
@@ -145,10 +130,9 @@ st.set_page_config(page_title="HGMS hIgG Simulation Studio", page_icon="🧪", l
 st.title("HGMS hIgG Simulation Studio")
 st.caption("Shape the recipe, launch a run, and inspect the core figures in one place.")
 
-if "editor_version" not in st.session_state:
-    st.session_state.editor_version = 0
-if "experiment" not in st.session_state:
-    st.session_state.experiment = None
+st.session_state.setdefault("editor_version", 0)
+st.session_state.setdefault("experiment", None)  # last finished (or currently running) experiment
+st.session_state.setdefault("running", False)
 
 if st.session_state.get("saved_path"):
     st.success(f"Saved run to {st.session_state.saved_path}")
@@ -192,11 +176,12 @@ with opt2:
 with opt3:
     solver_name = st.selectbox("Solver type", options=list(SOLVERS), index=0)
 
-run_button = st.button("Run simulation", type="primary", disabled=bool(errors), width="stretch")
+run_col, abort_col = st.columns(2)
+run_clicked = run_col.button("Run simulation", type="primary", disabled=bool(errors) or st.session_state.running, width="stretch")
+abort_clicked = abort_col.button("Abort simulation", disabled=not st.session_state.running, width="stretch")
 
-if run_button:
+if run_clicked:
     recipe_steps = dataframe_to_recipe(edited_df)
-    transitions = phase_transitions(recipe_steps)
     experiment = build_experiment(
         recipe_steps,
         discretization_factor=discretization_factor,
@@ -204,59 +189,77 @@ if run_button:
         solver_type=SOLVERS[solver_name],
         solutions=get_solutions(tau_reaction, solver_name),
     )
-    span = (0.0, experiment.total_duration)
+    holder: dict = {}
+    worker = threading.Thread(target=_solve, args=(experiment, holder), daemon=True)
+    worker.start()
+    st.session_state.update(
+        experiment=experiment, worker=worker, holder=holder,
+        transitions=phase_transitions(recipe_steps), running=True,
+    )
+    st.rerun()
 
-    st.markdown("##### Live")
-    ph_slot = st.empty()
-    step_slot = st.empty()
-    progress = st.progress(0.0, text="Starting simulation…")
-    frame = {"i": 0}
+if abort_clicked:
+    # The C++ solve can't be cancelled, so the background thread finishes on its own; we
+    # simply stop waiting on it and discard the (partial) experiment.
+    st.session_state.update(running=False, experiment=None, worker=None)
+    st.rerun()
 
-    def on_update(experiment: Experiment):
-        frame["i"] += 1
+# ----- Live (only while a run is in progress) ----------------------------------
+if st.session_state.running:
+    @st.fragment(run_every=1.0)
+    def live_view():
+        experiment = st.session_state.experiment
+        span = (0.0, experiment.total_duration)
         times, ph = experiment.live_pH()
-        ph_slot.plotly_chart(
-            build_ph_figure(times, ph, transitions=transitions, x_range=span, title="pH (live)"),
-            width="stretch", key=f"live_ph_{frame['i']}",
+        st.plotly_chart(
+            build_ph_figure(times, ph, experimental=get_experimental(), transitions=st.session_state.transitions, x_range=span, title="pH (live)"),
+            width="stretch", key="live_ph",
         )
-        step_slot.plotly_chart(
+        st.plotly_chart(
             build_time_step_figure(*experiment.step_sizes(), x_range=span, title="Solver time steps (live)"),
-            width="stretch", key=f"live_ts_{frame['i']}",
+            width="stretch", key="live_ts",
         )
-        progress.progress(experiment.progress, text=f"Simulating… {experiment.t:.0f} / {experiment.total_duration:.0f} s")
+        st.progress(experiment.progress, text=f"Simulating… {experiment.t:.0f} / {experiment.total_duration:.0f} s")
+        if not st.session_state.worker.is_alive():
+            st.session_state.running = False
+            if st.session_state.holder.get("error"):
+                st.session_state.update(experiment=None, run_error=str(st.session_state.holder["error"]))
+            st.rerun(scope="app")
 
-    solve_streaming(experiment, on_update, interval=1.0)
-    progress.progress(1.0, text="Simulation finished.")
-    ph_slot.empty()
-    step_slot.empty()
+    live_view()
 
-    st.session_state.experiment = experiment
-    st.session_state.transitions = transitions
-    st.success("Run finished.")
+# ----- Results (hidden while a run is streaming above) -------------------------
+if not st.session_state.running:
+    st.subheader("Results")
+    if st.session_state.get("run_error"):
+        st.error(f"Simulation failed: {st.session_state.run_error}")
+        st.session_state.run_error = None
 
-# ----- Results -----------------------------------------------------------------
-st.subheader("Results")
-experiment = st.session_state.experiment
-if experiment is None:
-    st.info("Run a simulation to view results.")
-else:
-    span = (0.0, experiment.total_duration)
+    experiment = st.session_state.experiment
+    experimental = get_experimental()
     st.markdown("##### pH profile")
-    st.plotly_chart(
-        build_ph_figure(
-            experiment.times(), experiment.outlet_pH(True), experiment.outlet_pH(False),
-            experimental=get_experimental(), transitions=st.session_state.transitions, x_range=span,
-        ),
-        width="stretch",
-    )
-    st.markdown("##### Fraction masses")
-    st.plotly_chart(
-        build_fractions_figure({"Simulation": experiment.fraction_masses(), "Experiment": EXPERIMENT}),
-        width="stretch",
-    )
-    st.markdown("##### Solver time-step sizes")
-    st.plotly_chart(build_time_step_figure(*experiment.step_sizes(), x_range=span), width="stretch")
+    if experiment is None:
+        # No run yet (or aborted): still show the experimental pH so it is always comparable.
+        x_range = (0.0, float(experimental["time_s"].max())) if experimental is not None else None
+        st.plotly_chart(build_ph_figure([], [], experimental=experimental, x_range=x_range), width="stretch")
+        st.info("Run a simulation to overlay the model results.")
+    else:
+        span = (0.0, experiment.total_duration)
+        st.plotly_chart(
+            build_ph_figure(
+                experiment.times(), experiment.outlet_pH(True), experiment.outlet_pH(False),
+                experimental=experimental, transitions=st.session_state.transitions, x_range=span,
+            ),
+            width="stretch",
+        )
+        st.markdown("##### Fraction masses")
+        st.plotly_chart(
+            build_fractions_figure({"Simulation": experiment.fraction_masses(), "Experiment": EXPERIMENT}),
+            width="stretch",
+        )
+        st.markdown("##### Solver time-step sizes")
+        st.plotly_chart(build_time_step_figure(*experiment.step_sizes(), x_range=span), width="stretch")
 
-    st.divider()
-    if st.button("Save run…", type="primary"):
-        save_run_dialog(experiment)
+        st.divider()
+        if st.button("Save run…", type="primary"):
+            save_run_dialog(experiment)
