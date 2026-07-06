@@ -18,7 +18,7 @@ from recipe import phase_transitions
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = REPO_ROOT / "data"
 RUNS_DIR = DATA_DIR / "runs"
-EXPERIMENTAL_PATH = DATA_DIR / "experimental_data.ods"
+EXPERIMENTAL_PATH = DATA_DIR / "experimental_pH.csv"
 
 # A previously saved run to inspect standalone (e.g. by animate_unit_operations.py).
 DEFAULT_RUN_DIR = DATA_DIR / "run_fitted_no_MNP_hydroxyl_reactions_ERK_for_time_steps"

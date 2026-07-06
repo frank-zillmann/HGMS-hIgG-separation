@@ -12,6 +12,3 @@ kaleido
 
 # Web UI.
 streamlit
-
-# To read the experimental pH data (data/experimental_data.ods).
-odfpy

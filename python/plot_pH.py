@@ -27,16 +27,17 @@ def build_ph_figure(
             x=experimental["time_s"], y=experimental["pH"] - 0.35,
             name="Experimental", mode="lines", line=dict(color="black", width=1.5),
         )
-    fig.add_scatter(
-        x=times, y=ph_activity,
-        name="Simulation (activity)", mode="lines", line=dict(color="#555555", width=1.5),
-    )
-    if ph_concentration is not None:
+    if len(times):
         fig.add_scatter(
-            x=times, y=ph_concentration,
-            name="Simulation (concentration)", mode="lines",
-            line=dict(color="#999999", width=1.5, dash="dash"),
+            x=times, y=ph_activity,
+            name="Simulation (activity)", mode="lines", line=dict(color="#555555", width=1.5),
         )
+        if ph_concentration is not None and len(ph_concentration):
+            fig.add_scatter(
+                x=times, y=ph_concentration,
+                name="Simulation (concentration)", mode="lines",
+                line=dict(color="#999999", width=1.5, dash="dash"),
+            )
 
     fig.update_layout(
         title=title,
@@ -50,13 +51,8 @@ def build_ph_figure(
 
 
 def load_experimental(experimental_path: str) -> Optional[pd.DataFrame]:
-    """Read the optional experimental pH reference (.ods); returns None if unavailable."""
+    """Read the optional experimental pH reference (CSV with time_s,pH); None if unavailable."""
     if not os.path.exists(experimental_path):
         print(f"Warning: Experimental data not found at {experimental_path}.")
         return None
-    try:
-        df = pd.read_excel(experimental_path, engine="odf")
-    except Exception as exc:  # missing odf engine, bad file, ...
-        print(f"Warning: Could not read experimental data ({exc}).")
-        return None
-    return df[["time_s", "pH"]].sort_values("time_s")
+    return pd.read_csv(experimental_path)[["time_s", "pH"]].sort_values("time_s")
