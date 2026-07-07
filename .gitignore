@@ -1,7 +1,11 @@
-/TODO
 
-# Run folders with timestamps
-run_*/
+# Simulation results, but not the experimental/MATLAB data
+/data/*
+!/data/experimental_pH.csv
+!/data/reference_fractions.csv
+
+# Other files
+/TODO
 
 # Build and install folders
 /build/
