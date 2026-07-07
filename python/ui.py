@@ -170,9 +170,9 @@ if st.button("Reset to default recipe"):
 st.subheader("Run")
 opt1, opt2, opt3 = st.columns(3)
 with opt1:
-    discretization_factor = st.number_input("Discretization factor", min_value=0.01, max_value=2.0, value=0.1, step=0.05)
+    discretization_factor = st.number_input("Discretization factor", min_value=0.0, value=0.5, format="%g", step=0.1)
 with opt2:
-    tau_reaction = st.number_input("τ reaction [s]", min_value=0.0, max_value=100.0, value=0.1, step=0.1, format="%.2f")
+    tau_reaction = st.number_input("τ reaction [s]", min_value=0.001, value=0.1, format="%g", step=0.01)
 with opt3:
     solver_name = st.selectbox("Solver type", options=list(SOLVERS), index=0)
 
