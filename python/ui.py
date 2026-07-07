@@ -10,7 +10,7 @@ import fs3
 from components import build_component_system
 from experiment import Experiment, build_experiment
 from observers import save_observations
-from plot_fractions import EXPERIMENT, build_fractions_figure
+from plot_fractions import build_fractions_figure, default_datasets, load_reference_fractions
 from plot_pH import build_ph_figure, load_experimental
 from plot_time_step_sizes import build_time_step_figure
 from reactions import build_reaction_system
@@ -27,6 +27,7 @@ from solutions import build_solutions
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_ROOT = REPO_ROOT / "data" / "ui_runs"
 EXPERIMENTAL_PATH = REPO_ROOT / "data" / "experimental_pH.csv"
+REFERENCE_FRACTIONS_PATH = REPO_ROOT / "data" / "reference_fractions.csv"
 
 FLOW_SHEET_LABEL_TO_ENUM = {label: enum for enum, label in FLOW_SHEET_LABELS.items()}
 NO_FRACTION = "None"
@@ -44,6 +45,11 @@ def get_solutions(tau_reaction: float, solver_name: str):
 @st.cache_data(show_spinner=False)
 def get_experimental():
     return load_experimental(str(EXPERIMENTAL_PATH))
+
+
+@st.cache_data(show_spinner=False)
+def get_references():
+    return load_reference_fractions(str(REFERENCE_FRACTIONS_PATH))
 
 
 # Solution names are independent of tau/solver, so build once for the recipe dropdown.
@@ -116,10 +122,14 @@ def validate_recipe(df: pd.DataFrame) -> List[str]:
 
 @st.dialog("Save run")
 def save_run_dialog(experiment: Experiment):
-    name = st.text_input("Run name", value=datetime.now().strftime("run_%Y-%m-%d_%H-%M-%S"))
-    if st.button("Save", type="primary", disabled=not name.strip()):
-        path = save_observations(experiment, OUTPUT_ROOT / name.strip() / "obs")
-        st.session_state.saved_path = str(path)
+    # Streamlit runs server-side, so it can't open a native OS "Save As" dialog; instead we let
+    # the user pick a folder (server filesystem) and a name. Keys keep edits stable across reruns.
+    folder = st.text_input("Folder", key="save_run_dir")
+    name = st.text_input("Run name", key="save_run_name")
+    target = Path(folder) / name.strip() / "obs" if name.strip() else None
+    st.caption(f"Saves to `{target}`" if target else "Enter a run name.")
+    if st.button("Save", type="primary", disabled=target is None):
+        st.session_state.saved_path = str(save_observations(experiment, target))
         st.rerun()
 
 
@@ -210,9 +220,9 @@ if st.session_state.running:
     def live_view():
         experiment = st.session_state.experiment
         span = (0.0, experiment.total_duration)
-        times, ph = experiment.live_pH()
+        times, ph_activity, ph_concentration = experiment.live_pH()
         st.plotly_chart(
-            build_ph_figure(times, ph, experimental=get_experimental(), transitions=st.session_state.transitions, x_range=span, title="pH (live)"),
+            build_ph_figure(times, ph_activity, ph_concentration, experimental=get_experimental(), transitions=st.session_state.transitions, x_range=span, title="pH (live)"),
             width="stretch", key="live_ph",
         )
         st.plotly_chart(
@@ -254,7 +264,7 @@ if not st.session_state.running:
         )
         st.markdown("##### Fraction masses")
         st.plotly_chart(
-            build_fractions_figure({"Simulation": experiment.fraction_masses(), "Experiment": EXPERIMENT}),
+            build_fractions_figure(default_datasets(experiment.fraction_masses(), get_references())),
             width="stretch",
         )
         st.markdown("##### Solver time-step sizes")
@@ -262,4 +272,6 @@ if not st.session_state.running:
 
         st.divider()
         if st.button("Save run…", type="primary"):
+            st.session_state.save_run_dir = str(OUTPUT_ROOT)
+            st.session_state.save_run_name = datetime.now().strftime("run_%Y-%m-%d_%H-%M-%S")
             save_run_dialog(experiment)

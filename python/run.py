@@ -9,7 +9,7 @@ from typing import Optional, Union
 
 import fs3
 from experiment import build_experiment
-from plot_fractions import EXPERIMENT, build_fractions_figure
+from plot_fractions import build_fractions_figure, default_datasets, load_reference_fractions
 from plot_pH import build_ph_figure, load_experimental
 from plot_time_step_sizes import build_time_step_figure
 from observers import save_observations
@@ -19,6 +19,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = REPO_ROOT / "data"
 RUNS_DIR = DATA_DIR / "runs"
 EXPERIMENTAL_PATH = DATA_DIR / "experimental_pH.csv"
+REFERENCE_FRACTIONS_PATH = DATA_DIR / "reference_fractions.csv"
 
 # A previously saved run to inspect standalone (e.g. by animate_unit_operations.py).
 DEFAULT_RUN_DIR = DATA_DIR / "run_fitted_no_MNP_hydroxyl_reactions_ERK_for_time_steps"
@@ -54,7 +55,7 @@ def run(
         transitions=phase_transitions(experiment.recipe), x_range=span,
     ).write_image(str(plots_dir / "plot_pH.pdf"))
     build_fractions_figure(
-        {"Simulation": experiment.fraction_masses(), "Experiment": EXPERIMENT}
+        default_datasets(experiment.fraction_masses(), load_reference_fractions(str(REFERENCE_FRACTIONS_PATH)))
     ).write_image(str(plots_dir / "plot_fractions.pdf"))
     build_time_step_figure(*experiment.step_sizes(), x_range=span).write_image(str(plots_dir / "plot_time_step_sizes.png"), scale=3)
 

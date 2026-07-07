@@ -60,11 +60,13 @@ class Experiment:
         return outlet_pH(self.observers, self.unit_operations["pipe_outlet"], self.cs, model)
 
     def live_pH(self):
-        """Activity-based pH of the reached snapshots only (for live plotting during a run)."""
+        """Activity- and concentration-based pH of the reached snapshots (for live plotting)."""
         n = self.n_filled()
-        times, ph = self._snapshot_times[:n], self.outlet_pH(activity=True)[:n]
-        finite = np.isfinite(ph)
-        return times[finite], ph[finite]
+        times = self._snapshot_times[:n]
+        ph_activity = self.outlet_pH(activity=True)[:n]
+        ph_concentration = self.outlet_pH(activity=False)[:n]
+        finite = np.isfinite(ph_activity)
+        return times[finite], ph_activity[finite], ph_concentration[finite]
 
     def fraction_masses(self, component: str = "hIgG") -> Dict[str, float]:
         return fraction_masses(self.observers, self.cs.get_idx(component))
