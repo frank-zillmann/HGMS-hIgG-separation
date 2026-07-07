@@ -1,0 +1,7 @@
+scenario,Feed 1,Feed 2,Wash 1,Wash 2,Wash 3,Elution 1,Elution 2,Elution 3,Elution 4,Elution 5
+Experiment,,,,,,0.32,0.63,0.42,0.32,0.06
+"Matlab, fitted Langmuir, main simulation",,,,,,0.32,0.63,0.42,0.29,0.09
+"Matlab, isotherm Langmuir, main simulation",,,,,,0.22,0.43,0.35,0.25,0.13
+"Matlab, fitted Langmuir, no slurry formation",,,,,,0.75,0.43,0.3,0.2,0.09
+"Matlab, fitted Langmuir, no MNP hydroxyl reactions",,,,,,0.36,0.68,0.54,0.21,0.06
+"Matlab, fitted Langmuir, no Washburn model",,,,,,0.17,0.56,0.52,0.33,0.1
