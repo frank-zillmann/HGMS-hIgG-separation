@@ -9,12 +9,16 @@ Units: grams [g]
 from typing import Dict, Sequence
 
 import numpy as np
+import pandas as pd
 import plotly.graph_objects as go
 
 from recipe import FRACTIONS
 
 # Elutions aligned first, then Feed and Wash stacked above.
 DEFAULT_PLOT_ORDER = FRACTIONS[-5:] + FRACTIONS[:5]
+
+# Reference datasets (data/reference_fractions.csv) shown to the right of the simulation by default.
+DEFAULT_REFERENCES = ["Experiment", "Matlab, isotherm Langmuir, main simulation"]
 
 # Light/bright colors so the value labels stay readable.
 FRACTION_COLORS = {
@@ -24,24 +28,20 @@ FRACTION_COLORS = {
     "Elution 4": "#b5d3ec", "Elution 5": "#cfe2f3",
 }
 
-EXPERIMENT = {
-    "Elution 1": 0.32, "Elution 2": 0.63, "Elution 3": 0.42, "Elution 4": 0.32, "Elution 5": 0.06,
-}
 
-# Reference datasets from the paper/Matlab (elutions only; Feed/Wash unknown).
-# Uncomment and merge into ``datasets`` to overlay them.
-# REFERENCE_DATASETS = {
-#     "Matlab, fitted Langmuir, main simulation":
-#         {"Elution 1": 0.32, "Elution 2": 0.63, "Elution 3": 0.42, "Elution 4": 0.29, "Elution 5": 0.09},
-#     "Matlab, isotherm Langmuir, main simulation":
-#         {"Elution 1": 0.22, "Elution 2": 0.43, "Elution 3": 0.35, "Elution 4": 0.25, "Elution 5": 0.13},
-#     "Matlab, fitted Langmuir, no slurry formation":
-#         {"Elution 1": 0.75, "Elution 2": 0.43, "Elution 3": 0.30, "Elution 4": 0.20, "Elution 5": 0.09},
-#     "Matlab, fitted Langmuir, no MNP hydroxyl reactions":
-#         {"Elution 1": 0.36, "Elution 2": 0.68, "Elution 3": 0.54, "Elution 4": 0.21, "Elution 5": 0.06},
-#     "Matlab, fitted Langmuir, no Washburn model":
-#         {"Elution 1": 0.17, "Elution 2": 0.56, "Elution 3": 0.52, "Elution 4": 0.33, "Elution 5": 0.10},
-# }
+def load_reference_fractions(path: str) -> Dict[str, Dict[str, float]]:
+    """Load {scenario: {fraction: mass_g}} from a CSV (scenario index, fraction columns)."""
+    df = pd.read_csv(path, index_col="scenario")
+    return {scenario: {frac: v for frac, v in row.items() if pd.notna(v)} for scenario, row in df.iterrows()}
+
+
+def default_datasets(simulation_masses: Dict[str, float], references: Dict[str, Dict[str, float]]) -> Dict[str, Dict[str, float]]:
+    """Simulation first, then the default reference scenarios (in order) that are available."""
+    datasets = {"Simulation": simulation_masses}
+    for name in DEFAULT_REFERENCES:
+        if name in references:
+            datasets[name] = references[name]
+    return datasets
 
 
 def build_fractions_figure(
