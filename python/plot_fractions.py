@@ -6,6 +6,7 @@ extra scenario; Feed/Wash are unknown there and drawn as gaps.
 Units: grams [g]
 """
 
+from pathlib import Path
 from typing import Dict, Sequence
 
 import numpy as np
@@ -13,6 +14,8 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from recipe import FRACTIONS
+
+REFERENCE_PATH = Path(__file__).resolve().parent.parent / "data" / "reference_fractions.csv"
 
 # Elutions aligned first, then Feed and Wash stacked above.
 DEFAULT_PLOT_ORDER = FRACTIONS[-5:] + FRACTIONS[:5]
@@ -29,9 +32,9 @@ FRACTION_COLORS = {
 }
 
 
-def load_reference_fractions(path: str) -> Dict[str, Dict[str, float]]:
-    """Load {scenario: {fraction: mass_g}} from a CSV (scenario index, fraction columns)."""
-    df = pd.read_csv(path, index_col="scenario")
+def load_reference_fractions() -> Dict[str, Dict[str, float]]:
+    """Load {scenario: {fraction: mass_g}} from data/reference_fractions.csv."""
+    df = pd.read_csv(REFERENCE_PATH, index_col="scenario")
     return {scenario: {frac: v for frac, v in row.items() if pd.notna(v)} for scenario, row in df.iterrows()}
 
 

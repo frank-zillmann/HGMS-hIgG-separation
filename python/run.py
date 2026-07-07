@@ -15,14 +15,8 @@ from plot_time_step_sizes import build_time_step_figure
 from observers import save_observations
 from recipe import phase_transitions
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = REPO_ROOT / "data"
-RUNS_DIR = DATA_DIR / "runs"
-EXPERIMENTAL_PATH = DATA_DIR / "experimental_pH.csv"
-REFERENCE_FRACTIONS_PATH = DATA_DIR / "reference_fractions.csv"
-
-# A previously saved run to inspect standalone (e.g. by animate_unit_operations.py).
-DEFAULT_RUN_DIR = DATA_DIR / "run_fitted_no_MNP_hydroxyl_reactions_ERK_for_time_steps"
+# Where runs are saved (and where animate_unit_operations.py looks for one).
+DEFAULT_RUN_DIR = Path(__file__).resolve().parent.parent / "data" / "runs"
 
 
 def run(
@@ -43,7 +37,7 @@ def run(
     experiment.solve()
     print(f"Solved in {experiment.solver.get_solve_time():.1f} s ({len(experiment.solver.get_internal_time_stamps())} internal steps).")
 
-    output_dir = Path(output_dir) if output_dir is not None else RUNS_DIR / datetime.now().strftime("run_%Y-%m-%d_%H-%M-%S")
+    output_dir = Path(output_dir) if output_dir is not None else DEFAULT_RUN_DIR / datetime.now().strftime("run_%Y-%m-%d_%H-%M-%S")
     save_observations(experiment, output_dir / "obs")
 
     span = (0.0, experiment.total_duration)
@@ -51,11 +45,11 @@ def run(
     plots_dir.mkdir(parents=True, exist_ok=True)
     build_ph_figure(
         experiment.times(), experiment.outlet_pH(True), experiment.outlet_pH(False),
-        experimental=load_experimental(str(EXPERIMENTAL_PATH)),
+        experimental=load_experimental(),
         transitions=phase_transitions(experiment.recipe), x_range=span,
     ).write_image(str(plots_dir / "plot_pH.pdf"))
     build_fractions_figure(
-        default_datasets(experiment.fraction_masses(), load_reference_fractions(str(REFERENCE_FRACTIONS_PATH)))
+        default_datasets(experiment.fraction_masses(), load_reference_fractions())
     ).write_image(str(plots_dir / "plot_fractions.pdf"))
     build_time_step_figure(*experiment.step_sizes(), x_range=span).write_image(str(plots_dir / "plot_time_step_sizes.png"), scale=3)
 

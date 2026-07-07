@@ -24,14 +24,10 @@ from recipe import (
 )
 from solutions import build_solutions
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-OUTPUT_ROOT = REPO_ROOT / "data" / "ui_runs"
-EXPERIMENTAL_PATH = REPO_ROOT / "data" / "experimental_pH.csv"
-REFERENCE_FRACTIONS_PATH = REPO_ROOT / "data" / "reference_fractions.csv"
+OUTPUT_ROOT = Path(__file__).resolve().parent.parent / "data" / "ui_runs"
 
 FLOW_SHEET_LABEL_TO_ENUM = {label: enum for enum, label in FLOW_SHEET_LABELS.items()}
-NO_FRACTION = "None"
-FRACTION_OPTIONS = [NO_FRACTION] + FRACTIONS
+FRACTION_OPTIONS = ["None"] + FRACTIONS
 SOLVERS = {"ERK": fs3.SolverType.ERK, "ARK": fs3.SolverType.ARK, "ADAMS": fs3.SolverType.ADAMS, "BDF": fs3.SolverType.BDF}
 
 
@@ -42,14 +38,8 @@ def get_solutions(tau_reaction: float, solver_name: str):
     return build_solutions(cs, rs, SOLVERS[solver_name])
 
 
-@st.cache_data(show_spinner=False)
-def get_experimental():
-    return load_experimental(str(EXPERIMENTAL_PATH))
-
-
-@st.cache_data(show_spinner=False)
-def get_references():
-    return load_reference_fractions(str(REFERENCE_FRACTIONS_PATH))
+get_experimental = st.cache_data(show_spinner=False)(load_experimental)
+get_references = st.cache_data(show_spinner=False)(load_reference_fractions)
 
 
 # Solution names are independent of tau/solver, so build once for the recipe dropdown.
@@ -77,7 +67,7 @@ def recipe_to_dataframe(recipe_steps: List[RecipeStep]) -> pd.DataFrame:
                 "Mixing_%": step.mixing_percentage,
                 "Flow_Config": FLOW_SHEET_LABELS[step.flow_sheet_configuration],
                 "Inlet": step.inlet,
-                "Fraction": step.fraction or NO_FRACTION,
+                "Fraction": step.fraction or "None",
             }
             for step in recipe_steps
         ]
@@ -93,7 +83,7 @@ def dataframe_to_recipe(df: pd.DataFrame) -> List[RecipeStep]:
             mixing_percentage=float(row["Mixing_%"]),
             flow_sheet_configuration=FLOW_SHEET_LABEL_TO_ENUM[row["Flow_Config"]],
             inlet=row["Inlet"],
-            fraction=None if row["Fraction"] == NO_FRACTION else row["Fraction"],
+            fraction=None if row["Fraction"] == "None" else row["Fraction"],
         )
         for row in df.to_dict(orient="records")
     ]

@@ -1,20 +1,22 @@
 """pH figure builder (Plotly)."""
 
-import os
+from pathlib import Path
 from typing import Optional, Sequence, Tuple
 
 import pandas as pd
 import plotly.graph_objects as go
 
+EXPERIMENTAL_PATH = Path(__file__).resolve().parent.parent / "data" / "experimental_pH.csv"
+
 
 def build_ph_figure(
     times: Sequence[float],
-    ph_activity: Sequence[float],
+    ph_activity: Optional[Sequence[float]] = None,
     ph_concentration: Optional[Sequence[float]] = None,
     experimental: Optional[pd.DataFrame] = None,
     transitions: Optional[Sequence[float]] = None,
     x_range: Optional[Tuple[float, float]] = None,
-    title: str = "pH in Process Chamber",
+    title: str = "pH in Outlet Pipe",
 ) -> go.Figure:
     """Build the pH figure. Accepts partial data so it can be redrawn live during a run."""
     fig = go.Figure()
@@ -28,10 +30,11 @@ def build_ph_figure(
             name="Experimental", mode="lines", line=dict(color="black", width=1.5),
         )
     if len(times):
-        fig.add_scatter(
-            x=times, y=ph_activity,
-            name="Simulation (activity)", mode="lines", line=dict(color="#555555", width=1.5),
-        )
+        if ph_activity is not None and len(ph_activity):
+            fig.add_scatter(
+                x=times, y=ph_activity,
+                name="Simulation (activity)", mode="lines", line=dict(color="#555555", width=1.5),
+            )
         if ph_concentration is not None and len(ph_concentration):
             fig.add_scatter(
                 x=times, y=ph_concentration,
@@ -50,9 +53,9 @@ def build_ph_figure(
     return fig
 
 
-def load_experimental(experimental_path: str) -> Optional[pd.DataFrame]:
+def load_experimental() -> Optional[pd.DataFrame]:
     """Read the optional experimental pH reference (CSV with time_s,pH); None if unavailable."""
-    if not os.path.exists(experimental_path):
-        print(f"Warning: Experimental data not found at {experimental_path}.")
+    if not EXPERIMENTAL_PATH.exists():
+        print(f"Warning: Experimental data not found at {EXPERIMENTAL_PATH}.")
         return None
-    return pd.read_csv(experimental_path)[["time_s", "pH"]].sort_values("time_s")
+    return pd.read_csv(EXPERIMENTAL_PATH)[["time_s", "pH"]].sort_values("time_s")
