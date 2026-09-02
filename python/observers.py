@@ -27,8 +27,7 @@ def build_observers(solver, unit_operations: Dict[str, object], total_duration: 
 
 def observer_array(observer: fs3.TimeSeriesObserver) -> np.ndarray:
     """Full recorded series as ``(n_snapshots, n_cells, n_components)``."""
-    values, shape = observer.get_all_snapshots_as_vector()
-    return np.asarray(values, dtype=np.float64).reshape(shape)
+    return observer.get_all_snapshots()
 
 
 def outlet_pH(observers, pipe_outlet, cs, activity_model) -> np.ndarray:

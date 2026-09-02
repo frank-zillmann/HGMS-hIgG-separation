@@ -6,6 +6,9 @@ numpy
 pandas
 matplotlib
 
+# Compiles model callbacks to machine code so the solver can call them without the GIL.
+numba
+
 # Interactive plots (Plotly) + static PDF/PNG export (kaleido, needs a Chrome/Chromium).
 plotly
 kaleido

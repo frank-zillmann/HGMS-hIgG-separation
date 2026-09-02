@@ -6,17 +6,10 @@ import fs3
 from components import mnp_ns
 
 # Langmuir isotherm support points: pH -> binding constant / capacity.
+# Native interpolators, not Python functions: they are evaluated in the ODE right-hand side.
 langmuir_ph = np.array([2.0, 2.5, 2.6, 3.5, 3.7, 4.5, 7.0], dtype=np.float64)
-langmuir_k_b = np.array([0.03, 2.14, 2.28, 3.22, 3.84, 35.15, 36.52], dtype=np.float64)
-langmuir_q_max = np.array([0.00, 0.01, 0.02, 0.05, 0.13, 0.28, 0.31], dtype=np.float64)
-
-
-def langmuir_k_b_from_pH(pH: float) -> float:
-    return float(np.interp(pH, langmuir_ph, langmuir_k_b))
-
-
-def langmuir_q_max_from_pH(pH: float) -> float:
-    return float(np.interp(pH, langmuir_ph, langmuir_q_max))
+langmuir_k_b_from_pH = fs3.LinearInterpolator(langmuir_ph, np.array([0.03, 2.14, 2.28, 3.22, 3.84, 35.15, 36.52]))
+langmuir_q_max_from_pH = fs3.LinearInterpolator(langmuir_ph, np.array([0.00, 0.01, 0.02, 0.05, 0.13, 0.28, 0.31]))
 
 
 def build_reaction_system(cs: fs3.ComponentSystem, tau_reaction: float):

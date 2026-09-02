@@ -216,7 +216,7 @@ if st.session_state.running:
             width="stretch", key="live_ph",
         )
         st.plotly_chart(
-            build_time_step_figure(*experiment.step_sizes(), x_range=span, title="Solver time steps (live)"),
+            build_time_step_figure(*experiment.step_sizes(max_points=5000), x_range=span, title="Solver time steps (live)"),
             width="stretch", key="live_ts",
         )
         st.progress(experiment.progress, text=f"Simulating… {experiment.t:.0f} / {experiment.total_duration:.0f} s")

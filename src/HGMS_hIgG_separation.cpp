@@ -14,7 +14,7 @@
 
 #include "Components/Component.hpp"
 #include "EigenDataTypes.hpp"
-#include "Interpolators.tpp"
+#include <Interpolators.hpp>
 #include "Logger.hpp"
 #include "Observers/NumpyIO.hpp"
 #include "Observers/PHConverter.hpp"
@@ -162,8 +162,8 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     // ColVector langmuir_q_max(5);
     // langmuir_q_max << 0.04, 0.03, 0.18, 0.13, 0.15;  // [g/g]
 
-    LinearInterpolator<ColVector> langmuir_K_B_interpolator(langmuir_pH, langmuir_K_B);
-    LinearInterpolator<ColVector> langmuir_q_max_interpolator(langmuir_pH, langmuir_q_max);
+    LinearInterpolator langmuir_K_B_interpolator(langmuir_pH, langmuir_K_B);
+    LinearInterpolator langmuir_q_max_interpolator(langmuir_pH, langmuir_q_max);
 
     // Langmuir adsorption reaction for MNP-HIgG
     auto k_b_from_pH = [langmuir_K_B_interpolator](realtype pH) { return langmuir_K_B_interpolator(pH); };
@@ -426,7 +426,7 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     lower_flowRate_curve << 0, 117, 260, 380, 505, 654, 783, 920, 1080, 1238, 1424, 1501, 1758, 1838, 1861, 1875, 1868, 1875, 1910;
     ColVector flowRate_curve = (upper_flowRate_curve + lower_flowRate_curve) / 2.0 / 6e7;
     // Create the linear interpolator for pump percentages and flow rates
-    LinearInterpolator<ColVector> pump_flowRate_Interpolator(pump_percentages, flowRate_curve);
+    LinearInterpolator pump_flowRate_Interpolator(pump_percentages, flowRate_curve);
 
     auto flowRateFunction = [&](realtype t) -> realtype {
         realtype t_cache = 0.0;
@@ -445,7 +445,7 @@ std::tuple<double, double, size_t> run_HGMS_hIgG_separation(realtype kf_ion,
     ColVector D_ax_curve(5);
     D_ax_curve << D_ax_pipes, 1.3e-5, 5e-5, 6.9e-5,
         8.4e-5;  // TODO: inconsistent with 0.5e-6 for 60% in paper
-    LinearInterpolator<ColVector> mixing_D_ax_Interpolator(mixing_percentages, D_ax_curve);
+    LinearInterpolator mixing_D_ax_Interpolator(mixing_percentages, D_ax_curve);
 
     auto pc_D_ax_function = [&](realtype t) -> realtype {
         realtype t_cache = 0.0;

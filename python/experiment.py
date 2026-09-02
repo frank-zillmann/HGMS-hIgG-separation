@@ -71,8 +71,12 @@ class Experiment:
     def fraction_masses(self, component: str = "hIgG") -> Dict[str, float]:
         return fraction_masses(self.observers, self.cs.get_idx(component))
 
-    def step_sizes(self):
-        ts = np.asarray(self.solver.get_internal_time_stamps(), dtype=np.float64)
+    def step_sizes(self, max_points: Optional[int] = None):
+        """Internal step sizes; ``max_points`` thins the series (a large run takes millions of
+        steps, which is far more than a live plot can draw once per second)."""
+        ts = self.solver.get_internal_time_stamps()
+        if max_points is not None and len(ts) > max_points:
+            ts = ts[:: len(ts) // max_points]
         return ts[:-1], np.diff(ts)
 
 

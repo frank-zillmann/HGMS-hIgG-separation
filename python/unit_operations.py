@@ -5,6 +5,7 @@ from bisect import bisect_right
 from typing import Dict, List, Sequence, Tuple
 
 import numpy as np
+from numba import cfunc, float64
 
 import fs3
 from recipe import FRACTIONS, FlowSheetConfig, RecipeStep
@@ -20,9 +21,26 @@ _MIXING_PERCENTAGES = np.array([0, 20, 40, 60, 80], dtype=np.float64)
 _D_AX_CURVE = np.array([0.0, 1.3e-5, 5e-5, 6.9e-5, 8.4e-5], dtype=np.float64)
 
 
-def _a_eff_function(um_u0_ratio: float) -> float:
+# Uncapture is ramped in over this many seconds at the start of a mixing step.
+_UNCAPTURE_RAMP_S = 10.0
+_EPS = 1e-9  # offset at which the left-hand limit of a step is sampled
+
+
+@cfunc(float64(float64), cache=True)
+def _a_eff_function(um_u0_ratio):
     a1, a2, a3, p, q = 2.035, 107.1, -0.00808, 0.07477, 1.083
     return 1.0 / (1.0 + a1 * math.exp(-p * um_u0_ratio) + a2 * math.exp(-q * um_u0_ratio) + a3)
+
+
+def _table(f, boundaries: Sequence[float], extra_points: Sequence[float] = ()) -> fs3.LinearInterpolator:
+    """Sample a function of time into a lookup table. Each point is stored twice -- left-hand
+    limit and value -- so a repeated x jumps with zero width and steps stay exact at any time
+    step. Pass ``extra_points`` where f is not constant within a section."""
+    t = np.unique(np.concatenate([[0.0], boundaries, extra_points]))
+    y = np.empty(2 * t.size)
+    y[0::2] = [f(t_i - _EPS) for t_i in t]
+    y[1::2] = [f(t_i) for t_i in t]
+    return fs3.LinearInterpolator(np.repeat(t, 2)[1:], y[1:])
 
 
 def build_process(
@@ -38,56 +56,43 @@ def build_process(
         total += step.t_duration
         cumulative_ends.append(total)
 
-    def section_idx(t):
-        i = bisect_right(cumulative_ends, t)
-        return None if i >= len(recipe) else i
-
     def interp_pump(p):
         return float(np.interp(p, _PUMP_PERCENTAGES, _FLOW_CURVE))
 
-    def flow_rate(t):
-        i = section_idx(t)
-        return interp_pump(0.0 if i is None else recipe[i].pump_percentage)
-
-    def pc_d_ax(t):
-        i = section_idx(t)
-        return float(np.interp(0.0 if i is None else recipe[i].mixing_percentage, _MIXING_PERCENTAGES, _D_AX_CURVE))
-
     def capture(t):
-        i = section_idx(t)
-        if i is None:
+        """Capture flag (1.0) or uncapture rate; ramped in over the first seconds of a mixing step."""
+        i = bisect_right(cumulative_ends, t)
+        if i >= len(recipe) or recipe[i].mixing_percentage == 0.0:
             return 1.0
-        step = recipe[i]
-        if step.mixing_percentage == 0.0:
-            return 1.0
-        t_in_section = t - (cumulative_ends[i] - step.t_duration)
-        uncapture_rate = math.log(2.0) / 5.0
-        if t_in_section < 10.0:
-            ramp = t_in_section / 10.0
-            return -(ramp * ramp) * uncapture_rate
-        return -uncapture_rate
+        rate = math.log(2.0) / 5.0
+        ramp = (t - (cumulative_ends[i] - recipe[i].t_duration)) / _UNCAPTURE_RAMP_S
+        return -rate * min(ramp * ramp, 1.0)
 
-    def inlet_concentration(t):
-        i = section_idx(t)
-        return solutions[(recipe[-1] if i is None else recipe[i]).inlet]
+    # ----- Schedules the solver calls per right-hand side evaluation -----
+    # Built as native lookups; a Python callable here would cost ~1 µs per call.
+    section_starts = np.array([0.0, *cumulative_ends])
 
-    def flow_rate_for(t, config):
-        i = section_idx(t)
-        if i is None:
-            return interp_pump(0.0)
-        return interp_pump(recipe[i].pump_percentage) if recipe[i].flow_sheet_configuration == config else 0.0
+    def steps(value_of, tail=0.0):
+        """Piecewise-constant schedule: value_of(step) within a step, tail after the recipe."""
+        return fs3.PiecewiseConstantInterpolator(section_starts, np.array([*map(value_of, recipe), tail]))
 
-    def flow_rate_line(t):
-        return flow_rate_for(t, FlowSheetConfig.LINE)
+    flow_rate = steps(lambda s: interp_pump(s.pump_percentage))
+    pc_d_ax = steps(lambda s: float(np.interp(s.mixing_percentage, _MIXING_PERCENTAGES, _D_AX_CURVE)))
+    flow_rate_line = steps(lambda s: interp_pump(s.pump_percentage) * (s.flow_sheet_configuration == FlowSheetConfig.LINE))
+    flow_rate_loop = steps(lambda s: interp_pump(s.pump_percentage) * (s.flow_sheet_configuration == FlowSheetConfig.LOOP))
+    flow_rate_fractions = {n: steps(lambda s, n=n: interp_pump(s.pump_percentage) * (s.fraction == n)) for n in FRACTIONS}
+    inlet_concentration = fs3.PiecewiseConstantInterpolator(
+        section_starts, np.array([solutions[step.inlet] for step in (*recipe, recipe[-1])])
+    )
 
-    def flow_rate_loop(t):
-        return flow_rate_for(t, FlowSheetConfig.LOOP)
-
-    def flow_rate_fraction(t, fraction_name):
-        i = section_idx(t)
-        if i is None:
-            return interp_pump(0.0)
-        return interp_pump(recipe[i].pump_percentage) if recipe[i].fraction == fraction_name else 0.0
+    # capture() varies within a step, so its ramp is sampled instead.
+    ramp_points = [
+        t
+        for step, end in zip(recipe, cumulative_ends)
+        if step.mixing_percentage
+        for t in np.linspace(end - step.t_duration, end - step.t_duration + _UNCAPTURE_RAMP_S, 101)
+    ]
+    capture = _table(capture, cumulative_ends, ramp_points)
 
     # ----- Unit operations -----
     n_cells = lambda base: max(1, int(round(base * discretization_factor)))
@@ -126,7 +131,7 @@ def build_process(
     process.add_connection(pc.exit(), dead_volume.entry(), flow_rate)
     process.add_connection(dead_volume.exit(), pipe_outlet.entry(), flow_rate)
     for name, frac in fractions.items():
-        process.add_connection(pipe_outlet.exit(), frac.entry(), lambda t, n=name: flow_rate_fraction(t, n))
+        process.add_connection(pipe_outlet.exit(), frac.entry(), flow_rate_fractions[name])
     process.add_connection(pipe_outlet.exit(), pipe_loop.entry(), flow_rate_loop)
     process.add_connection(pipe_loop.exit(), pipe_inlet.entry(), flow_rate_loop)
 
