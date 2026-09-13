@@ -15,3 +15,7 @@ kaleido
 
 # Web UI.
 streamlit
+
+# Process optimisation (python/optimize.py).
+optuna
+scipy

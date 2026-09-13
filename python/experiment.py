@@ -80,6 +80,22 @@ class Experiment:
         return ts[:-1], np.diff(ts)
 
 
+def state(experiment: "Experiment") -> np.ndarray:
+    """Full solution vector of a solved experiment, for use as ``build_experiment(initial_state=...)``."""
+    return np.asarray(experiment.solver.get_y(), dtype=np.float64)
+
+
+def set_state(unit_operations: Dict[str, object], y: np.ndarray) -> None:
+    """Distribute a saved solution vector over the unit operations (their order defines the layout)."""
+    at = 0
+    for uo in unit_operations.values():
+        size = uo.y_size()
+        uo.y = y[at : at + size].reshape(uo.n_cells, uo.n_components())
+        at += size
+    if at != len(y):
+        raise ValueError(f"state has {len(y)} entries, unit operations need {at}.")
+
+
 def build_experiment(
     recipe: Optional[Sequence[RecipeStep]] = None,
     *,
@@ -89,16 +105,22 @@ def build_experiment(
     dt_obs: float = 2.0,
     timeout_seconds: float = float("inf"),
     solutions: Optional[Dict[str, np.ndarray]] = None,
+    denaturation: Optional[dict] = None,
+    initial_state: Optional[np.ndarray] = None,
 ) -> Experiment:
     """Assemble a ready-to-solve experiment. Pass pre-equilibrated ``solutions`` (plain
-    concentration arrays) to skip the ~2 s equilibration; the rest is always built fresh."""
+    concentration arrays) to skip the ~2 s equilibration; the rest is always built fresh.
+    ``denaturation`` adds the acid-denaturation reaction, ``initial_state`` (a full y vector from
+    an earlier run) starts the run from a saved state instead of from the initial conditions."""
     recipe = list(recipe) if recipe is not None else default_recipe()
-    cs = build_component_system()
-    rs, activity_model = build_reaction_system(cs, tau_reaction)
+    cs = build_component_system(denaturation is not None)
+    rs, activity_model = build_reaction_system(cs, tau_reaction, denaturation)
     if solutions is None:
         solutions = build_solutions(cs, rs, solver_type, timeout_seconds)
 
     process, unit_operations = build_process(rs, cs, recipe, solutions, discretization_factor)
+    if initial_state is not None:
+        set_state(unit_operations, initial_state)
     solver = fs3.Solver(process, solver_type)
 
     duration = total_duration(recipe)

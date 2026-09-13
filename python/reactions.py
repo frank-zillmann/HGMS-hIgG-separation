@@ -12,8 +12,16 @@ langmuir_k_b_from_pH = fs3.LinearInterpolator(langmuir_ph, np.array([0.03, 2.14,
 langmuir_q_max_from_pH = fs3.LinearInterpolator(langmuir_ph, np.array([0.00, 0.01, 0.02, 0.05, 0.13, 0.28, 0.31]))
 
 
-def build_reaction_system(cs: fs3.ComponentSystem, tau_reaction: float):
-    """Build the reaction system; returns ``(reaction_system, activity_model)``."""
+# Acid denaturation of hIgG. Assumed (no fitted data): still fairly stable at the pH 2.5 of the
+# standard elution buffer at ~10 %/h, accelerating by a decade per 0.4 pH units below that and
+# negligible above pH 3.
+DENATURATION = dict(k_ref=3e-5, pH_ref=2.5, pH_per_decade=0.4)
+
+
+def build_reaction_system(cs: fs3.ComponentSystem, tau_reaction: float, denaturation: dict = None):
+    """Build the reaction system; returns ``(reaction_system, activity_model)``.
+    Pass ``denaturation=DENATURATION`` (needs a component system built with ``denaturation=True``)
+    to add irreversible acid denaturation of free hIgG."""
     activity_model = fs3.TruesdellJonesActivityModel(cs)
     rs = fs3.ReactionSystem(cs, activity_model)
 
@@ -52,4 +60,6 @@ def build_reaction_system(cs: fs3.ComponentSystem, tau_reaction: float):
             tau_reaction,
         )
     )
+    if denaturation:
+        rs.add(fs3.denaturation_reaction(h_plus, cs.get_idx("hIgG"), cs.get_idx("hIgG-den"), **denaturation))
     return rs, activity_model
