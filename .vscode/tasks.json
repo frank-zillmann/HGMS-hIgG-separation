@@ -27,7 +27,7 @@
 			"command": "bash",
 			"args": [
 				"${workspaceFolder}/scripts/build.sh",
-				"-DCMAKE_BUILD_TYPE=Debug",
+				"-DCMAKE_BUILD_TYPE=Debug"
 			],
 			"group": "build",
 			"problemMatcher": [
@@ -55,7 +55,7 @@
 			}
 		},
 		{
-			"label": "Run: Normal Run",
+			"label": "Run: C++ Simulation",
 			"type": "shell",
 			"command": "${workspaceFolder}/install/bin/HGMS_hIgG_separation_main_run",
 			"group": "test",
@@ -68,6 +68,36 @@
 			"label": "Run: Hyperparameter Search",
 			"type": "shell",
 			"command": "${workspaceFolder}/install/bin/HGMS_hIgG_separation_hyperparameter_grid_search",
+			"group": "test",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			}
+		},
+		{
+			"label": "Run: Python Simulation",
+			"type": "shell",
+			"command": "python python/run.py",
+			"group": "test",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			}
+		},
+		{
+			"label": "Run: Simulation Studio (UI)",
+			"type": "shell",
+			"command": "streamlit run python/ui.py",
+			"group": "test",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			}
+		},
+		{
+			"label": "Run: Elution Optimisation",
+			"type": "shell",
+			"command": "python python/optimize.py",
 			"group": "test",
 			"presentation": {
 				"reveal": "always",
